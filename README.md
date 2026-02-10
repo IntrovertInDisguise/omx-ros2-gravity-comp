@@ -34,6 +34,7 @@ omx_dual_bringup/
 Each mode below lists:
 - **Build packages/files**: which packages you need to build (and where their build files live)
 - **Key dependencies**: what needs to be installed for that mode
+- **Dependency locations**: which workspace folders (and/or upstream repos) you need for that mode
 - **Launch file**: what to run
 - **Commands**: a minimal command list to bring it up
 
@@ -50,6 +51,17 @@ Each mode below lists:
   - ROS 2 control stack: `ros2_control`, `ros2_controllers`, `controller_manager`
   - Description/xacro: `open_manipulator_x_description`, `xacro`, `robot_state_publisher`
   - Serial access from Python tools/scripts: `python3-serial`
+- **Dependency locations (what to download/clone for this mode)**
+  - From this repo (workspace folders)
+    - `ws/src/omx_dual_bringup/`
+    - `ws/src/omx_gravity_comp_controller/`
+    - `ws/src/open_manipulator/open_manipulator_x_description/`
+    - `ws/src/dynamixel_sdk/`
+    - `ws/src/dynamixel_hardware_interface/`
+  - Upstream sources (if you are assembling a minimal workspace from scratch)
+    - OpenMANIPULATOR (Humble): `git clone -b humble https://github.com/ROBOTIS-GIT/open_manipulator.git`
+    - DynamixelSDK (Humble): `git clone -b humble https://github.com/ROBOTIS-GIT/DynamixelSDK.git dynamixel_sdk`
+    - Dynamixel HW interface (Humble): `git clone -b humble https://github.com/ROBOTIS-GIT/dynamixel_hardware_interface.git`
 - **Launch file**
   - `ws/src/omx_dual_bringup/launch/dual_hardware_gravity_comp.launch.py`
 - **Commands**
@@ -57,8 +69,18 @@ Each mode below lists:
 cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
+# Install OS/ROS dependencies (recommended for fresh machines)
+sudo apt update
+sudo apt install -y python3-colcon-common-extensions python3-rosdep python3-serial
+rosdep update || true
+rosdep install --from-paths src --ignore-src -r -y || true
+
 # Build
-colcon build --symlink-install --packages-select omx_gravity_comp_controller omx_dual_bringup
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description \
+  dynamixel_sdk dynamixel_sdk_custom_interfaces \
+  dynamixel_hardware_interface \
+  omx_gravity_comp_controller omx_dual_bringup
 source install/setup.bash
 
 # Launch (auto-detects ports, or override)
@@ -81,6 +103,13 @@ ros2 topic echo /robot1/joint_states
   - Gazebo Classic + ROS integration: `gazebo_ros`, `gazebo_ros2_control`, `gazebo_ros_pkgs`
   - ROS 2 control stack: `controller_manager`, `ros2controlcli`
   - Description/xacro: `open_manipulator_x_description`, `xacro`, `robot_state_publisher`
+- **Dependency locations (what to download/clone for this mode)**
+  - From this repo (workspace folders)
+    - `ws/src/omx_dual_bringup/`
+    - `ws/src/omx_gravity_comp_controller/`
+    - `ws/src/open_manipulator/open_manipulator_x_description/`
+  - Upstream sources (if you are assembling a minimal workspace from scratch)
+    - OpenMANIPULATOR (Humble): `git clone -b humble https://github.com/ROBOTIS-GIT/open_manipulator.git`
 - **Launch file**
   - `ws/src/omx_dual_bringup/launch/dual_gazebo_gravity_comp.launch.py`
 - **Commands**
@@ -88,8 +117,17 @@ ros2 topic echo /robot1/joint_states
 cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
+# Install OS/ROS dependencies (recommended for fresh machines)
+sudo apt update
+sudo apt install -y python3-colcon-common-extensions python3-rosdep \
+  ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control
+rosdep update || true
+rosdep install --from-paths src --ignore-src -r -y || true
+
 # Build
-colcon build --symlink-install --packages-select omx_gravity_comp_controller omx_dual_bringup
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description \
+  omx_gravity_comp_controller omx_dual_bringup
 source install/setup.bash
 
 # Launch (single Gazebo server by default)
@@ -113,6 +151,13 @@ ros2 control list_controllers -c /robot2/controller_manager
   - Gazebo Classic + ROS integration: `gazebo_ros`, `gazebo_ros2_control`, `gazebo_ros_pkgs`
   - ROS 2 control stack: `controller_manager`, `ros2controlcli`
   - Description/xacro: `open_manipulator_x_description`, `xacro`, `robot_state_publisher`
+- **Dependency locations (what to download/clone for this mode)**
+  - From this repo (workspace folders)
+    - `ws/src/omx_dual_bringup/`
+    - `ws/src/omx_gravity_comp_controller/`
+    - `ws/src/open_manipulator/open_manipulator_x_description/`
+  - Upstream sources (if you are assembling a minimal workspace from scratch)
+    - OpenMANIPULATOR (Humble): `git clone -b humble https://github.com/ROBOTIS-GIT/open_manipulator.git`
 - **Launch file**
   - `ws/src/omx_dual_bringup/launch/single_robot_test.launch.py`
 - **Commands**
@@ -120,8 +165,17 @@ ros2 control list_controllers -c /robot2/controller_manager
 cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
+# Install OS/ROS dependencies (recommended for fresh machines)
+sudo apt update
+sudo apt install -y python3-colcon-common-extensions python3-rosdep \
+  ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control
+rosdep update || true
+rosdep install --from-paths src --ignore-src -r -y || true
+
 # Build
-colcon build --symlink-install --packages-select omx_gravity_comp_controller omx_dual_bringup
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description \
+  omx_gravity_comp_controller omx_dual_bringup
 source install/setup.bash
 
 # Launch
@@ -142,6 +196,17 @@ ros2 topic echo /omx/joint_states
   - Dynamixel + hardware IO: `dynamixel_sdk`, `dynamixel_hardware_interface`
   - ROS 2 control stack: `ros2_control`, `ros2_controllers`, `controller_manager`
   - Description/xacro: `open_manipulator_x_description`, `xacro`, `robot_state_publisher`
+- **Dependency locations (what to download/clone for this mode)**
+  - From this repo (workspace folders)
+    - `ws/src/omx_dual_bringup/`
+    - `ws/src/omx_gravity_comp_controller/`
+    - `ws/src/open_manipulator/open_manipulator_x_description/`
+    - `ws/src/dynamixel_sdk/`
+    - `ws/src/dynamixel_hardware_interface/`
+  - Upstream sources (if you are assembling a minimal workspace from scratch)
+    - OpenMANIPULATOR (Humble): `git clone -b humble https://github.com/ROBOTIS-GIT/open_manipulator.git`
+    - DynamixelSDK (Humble): `git clone -b humble https://github.com/ROBOTIS-GIT/DynamixelSDK.git dynamixel_sdk`
+    - Dynamixel HW interface (Humble): `git clone -b humble https://github.com/ROBOTIS-GIT/dynamixel_hardware_interface.git`
 - **Launch file**
   - `ws/src/omx_dual_bringup/launch/single_robot_hardware.launch.py`
 - **Commands**
@@ -149,8 +214,18 @@ ros2 topic echo /omx/joint_states
 cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
+# Install OS/ROS dependencies (recommended for fresh machines)
+sudo apt update
+sudo apt install -y python3-colcon-common-extensions python3-rosdep
+rosdep update || true
+rosdep install --from-paths src --ignore-src -r -y || true
+
 # Build
-colcon build --symlink-install --packages-select omx_gravity_comp_controller omx_dual_bringup
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description \
+  dynamixel_sdk dynamixel_sdk_custom_interfaces \
+  dynamixel_hardware_interface \
+  omx_gravity_comp_controller omx_dual_bringup
 source install/setup.bash
 
 # Launch (auto-detects port, or override)
