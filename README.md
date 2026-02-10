@@ -5,6 +5,19 @@ This package provides launch files and configurations for running **two independ
 - **Simulation**: Gazebo simulation with RViz2 visualization
 - **Auto-detection**: Automatically detect hardware or fallback to simulation
 
+## Overview
+
+This repository is a ROS 2 Humble workspace for OpenMANIPULATOR-X gravity compensation.
+
+- **Primary bringup package:** `omx_dual_bringup`
+- **Gravity compensation controller plugin:** `omx_gravity_comp_controller`
+- **Robot description + xacro:** `open_manipulator_x_description`
+- **Hardware path (Dynamixel):** `dynamixel_sdk` + `dynamixel_hardware_interface`
+
+You can run:
+- **Dual robot** (hardware or Gazebo) with namespaces `robot1` / `robot2`
+- **Single robot** (hardware or Gazebo) with namespace `omx`
+
 ## Features
 
 ✅ Proper namespace isolation (`robot1` and `robot2`)
@@ -39,6 +52,31 @@ Each mode below lists:
 - **Commands**: a minimal command list to bring it up
 
 > Note: All commands assume you are in this repo and using ROS 2 Humble.
+
+### Minimal Initial Setup (after cloning)
+
+Run this once after cloning (then pick one of the 4 modes below).
+
+```bash
+# From the repo root
+cd /workspaces/omx_ros2/ws
+
+# ROS environment
+source /opt/ros/humble/setup.bash
+
+# Tools + rosdep (skip if you already have these)
+sudo apt update
+sudo apt install -y python3-colcon-common-extensions python3-rosdep
+
+# rosdep is the easiest way to pull the correct ROS/Ubuntu packages
+sudo rosdep init 2>/dev/null || true
+rosdep update || true
+rosdep install --from-paths src --ignore-src -r -y || true
+```
+
+Notes:
+- If you are using the devcontainer, most dependencies are already installed during container setup.
+- Hardware modes need USB/serial access (e.g. `/dev/ttyUSB*` or `/dev/serial/by-id/*`).
 
 ### 1) Dual Hardware Setup (2 real robots)
 
