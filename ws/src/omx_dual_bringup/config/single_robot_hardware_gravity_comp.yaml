@@ -1,0 +1,25 @@
+/omx/controller_manager:
+  ros__parameters:
+    update_rate: 500
+    use_sim_time: false
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    gravity_comp_controller:
+      type: omx_gravity_comp_controller/OmxGravityCompController
+
+/omx/gravity_comp_controller:
+  ros__parameters:
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+    root_link: world
+    tip_link: link5
+    # KDL outputs Nm; Dynamixel Goal Current is in raw units (2.69 mA/step).
+    # XM430-W350 torque constant ≈ 1.4 Nm/A → scale = 1/(1.4*0.00269) ≈ 267.
+    # Start conservative at 200, tune up if still drooping.
+    torque_scale: 200.0
+    robot_description_node: /omx/robot_state_publisher

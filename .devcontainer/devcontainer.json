@@ -1,0 +1,30 @@
+{
+  "name": "omx_ros2",
+  "image": "osrf/ros:humble-desktop",
+  "remoteUser": "root",
+
+  "workspaceFolder": "/workspaces/omx_ros2",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/omx_ros2,type=bind,consistency=cached",
+
+  "containerEnv": {
+    "ROS_DISTRO": "humble"
+  },
+
+  "postCreateCommand": "chmod +x /workspaces/omx_ros2/.devcontainer/setup.sh && /workspaces/omx_ros2/.devcontainer/setup.sh",
+  
+  "runArgs": [
+  "--privileged",
+  "--device=/dev/ttyUSB0",
+  "--device=/dev/ttyACM0",
+  "--volume=/dev/serial:/dev/serial"
+],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-vscode.cpptools",
+        "ms-python.python"
+      ]
+    }
+  }
+}

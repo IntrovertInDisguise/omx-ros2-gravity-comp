@@ -1,0 +1,60 @@
+/robot1/controller_manager:
+  ros__parameters:
+    update_rate: 500
+    use_sim_time: true
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    robot1_gravity_comp:
+      type: omx_gravity_comp_controller/OmxGravityCompController
+
+# Params for robot1 controller - declare in both namespaces due to Gazebo namespace leakage
+/robot1/robot1_gravity_comp:
+  ros__parameters:
+    joints:
+      - robot1_joint1
+      - robot1_joint2
+      - robot1_joint3
+      - robot1_joint4
+    root_link: world
+    tip_link: robot1_link5
+    torque_scale: 1.0
+    robot_description_node: /robot1/robot_state_publisher
+
+/robot2/robot1_gravity_comp:
+  ros__parameters:
+    joints:
+      - robot1_joint1
+      - robot1_joint2
+      - robot1_joint3
+      - robot1_joint4
+    root_link: world
+    tip_link: robot1_link5
+    torque_scale: 1.0
+    robot_description_node: /robot1/robot_state_publisher
+
+# Also need robot2 controller params from this YAML since both files are loaded in shared process
+/robot1/robot2_gravity_comp:
+  ros__parameters:
+    joints:
+      - robot2_joint1
+      - robot2_joint2
+      - robot2_joint3
+      - robot2_joint4
+    root_link: world
+    tip_link: robot2_link5
+    torque_scale: 1.0
+    robot_description_node: /robot2/robot_state_publisher
+
+/robot2/robot2_gravity_comp:
+  ros__parameters:
+    joints:
+      - robot2_joint1
+      - robot2_joint2
+      - robot2_joint3
+      - robot2_joint4
+    root_link: world
+    tip_link: robot2_link5
+    torque_scale: 1.0
+    robot_description_node: /robot2/robot_state_publisher

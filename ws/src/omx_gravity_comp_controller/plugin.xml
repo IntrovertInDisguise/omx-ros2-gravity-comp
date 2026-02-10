@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="omx_gravity_comp_controller">
+  <class
+    name="omx_gravity_comp_controller/OmxGravityCompController"
+    type="omx_gravity_comp_controller::OmxGravityCompController"
+    base_class_type="controller_interface::ControllerInterface">
+    <description>Gravity compensation controller (KDL)</description>
+  </class>
+</library>

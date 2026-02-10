@@ -1,0 +1,29 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 200
+
+    left_arm:
+      type: mock_components/GenericSystem
+      parameters:
+        joints:
+          - left_joint1
+          - left_joint2
+          - left_joint3
+          - left_joint4
+
+    right_arm:
+      type: mock_components/GenericSystem
+      parameters:
+        joints:
+          - right_joint1
+          - right_joint2
+          - right_joint3
+          - right_joint4
+
+    # Your controller type list is discovered via pluginlib.
+    # We'll spawn them by name.
+    left_gravity_comp:
+      type: omx_gravity_comp_controller/OmxGravityCompController
+
+    right_gravity_comp:
+      type: omx_gravity_comp_controller/OmxGravityCompController

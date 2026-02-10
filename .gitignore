@@ -1,0 +1,23 @@
+# Colcon build artifacts
+ws/build/
+ws/install/
+ws/log/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# ROS
+*.bag
+*.db3
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

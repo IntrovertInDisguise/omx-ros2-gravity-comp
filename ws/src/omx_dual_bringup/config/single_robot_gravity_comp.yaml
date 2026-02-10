@@ -1,0 +1,23 @@
+/omx/controller_manager:
+  ros__parameters:
+    update_rate: 500
+    use_sim_time: false
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    gravity_comp_controller:
+      type: omx_gravity_comp_controller/OmxGravityCompController
+
+/omx/gravity_comp_controller:
+  ros__parameters:
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+    root_link: world
+    tip_link: link5
+    torque_scale: 2.0
+    robot_description_node: /omx/robot_state_publisher
+
