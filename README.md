@@ -1,7 +1,7 @@
 # Dual Open Manipulator X with Gravity Compensation
 
 This package provides launch files and configurations for running **two independent Open Manipulator X robots** with gravity compensation in ROS2. The robots can be controlled via:
-- **Hardware**: Two robots connected via separate serial ports
+- **Hardware**: Two robots connected via separate serial ports through U2D2
 - **Simulation**: Gazebo simulation with RViz2 visualization
 - **Auto-detection**: Automatically detect hardware or fallback to simulation
 
