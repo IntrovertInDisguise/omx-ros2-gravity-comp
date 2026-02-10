@@ -29,6 +29,138 @@ omx_dual_bringup/
     └── dual_robots.rviz                 # RViz configuration
 ```
 
+## Setup Recipes (4 Modes)
+
+Each mode below lists:
+- **Build packages/files**: which packages you need to build (and where their build files live)
+- **Key dependencies**: what needs to be installed for that mode
+- **Launch file**: what to run
+- **Commands**: a minimal command list to bring it up
+
+> Note: All commands assume you are in this repo and using ROS 2 Humble.
+
+### 1) Dual Hardware Setup (2 real robots)
+
+- **Build packages/files**
+  - `omx_dual_bringup` (build files: `ws/src/omx_dual_bringup/CMakeLists.txt`, `ws/src/omx_dual_bringup/package.xml`)
+  - `omx_gravity_comp_controller` (build files: `ws/src/omx_gravity_comp_controller/CMakeLists.txt`, `ws/src/omx_gravity_comp_controller/package.xml`)
+  - Configs used: `ws/src/omx_dual_bringup/config/robot1_gravity_comp.yaml`, `ws/src/omx_dual_bringup/config/robot2_gravity_comp.yaml`
+- **Key dependencies**
+  - Dynamixel + hardware IO: `dynamixel_sdk`, `dynamixel_hardware_interface`
+  - ROS 2 control stack: `ros2_control`, `ros2_controllers`, `controller_manager`
+  - Description/xacro: `open_manipulator_x_description`, `xacro`, `robot_state_publisher`
+  - Serial access from Python tools/scripts: `python3-serial`
+- **Launch file**
+  - `ws/src/omx_dual_bringup/launch/dual_hardware_gravity_comp.launch.py`
+- **Commands**
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+
+# Build
+colcon build --symlink-install --packages-select omx_gravity_comp_controller omx_dual_bringup
+source install/setup.bash
+
+# Launch (auto-detects ports, or override)
+ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py \
+  robot1_port:=/dev/ttyUSB0 robot2_port:=/dev/ttyUSB1 start_rviz:=true
+
+# Sanity checks
+ros2 control list_controllers -c /robot1/controller_manager
+ros2 control list_controllers -c /robot2/controller_manager
+ros2 topic echo /robot1/joint_states
+```
+
+### 2) Dual Simulation Setup (2 robots in Gazebo)
+
+- **Build packages/files**
+  - `omx_dual_bringup` (build files: `ws/src/omx_dual_bringup/CMakeLists.txt`, `ws/src/omx_dual_bringup/package.xml`)
+  - `omx_gravity_comp_controller` (build files: `ws/src/omx_gravity_comp_controller/CMakeLists.txt`, `ws/src/omx_gravity_comp_controller/package.xml`)
+  - Configs used: `ws/src/omx_dual_bringup/config/robot1_gravity_comp.yaml`, `ws/src/omx_dual_bringup/config/robot2_gravity_comp.yaml`
+- **Key dependencies**
+  - Gazebo Classic + ROS integration: `gazebo_ros`, `gazebo_ros2_control`, `gazebo_ros_pkgs`
+  - ROS 2 control stack: `controller_manager`, `ros2controlcli`
+  - Description/xacro: `open_manipulator_x_description`, `xacro`, `robot_state_publisher`
+- **Launch file**
+  - `ws/src/omx_dual_bringup/launch/dual_gazebo_gravity_comp.launch.py`
+- **Commands**
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+
+# Build
+colcon build --symlink-install --packages-select omx_gravity_comp_controller omx_dual_bringup
+source install/setup.bash
+
+# Launch (single Gazebo server by default)
+ros2 launch omx_dual_bringup dual_gazebo_gravity_comp.launch.py gazebo_mode:=single start_rviz:=true
+
+# Optional: full isolation using two Gazebo servers
+# ros2 launch omx_dual_bringup dual_gazebo_gravity_comp.launch.py gazebo_mode:=dual
+
+# Sanity checks
+ros2 control list_controllers -c /robot1/controller_manager
+ros2 control list_controllers -c /robot2/controller_manager
+```
+
+### 3) Single Simulation Setup (1 robot in Gazebo)
+
+- **Build packages/files**
+  - `omx_dual_bringup` (build files: `ws/src/omx_dual_bringup/CMakeLists.txt`, `ws/src/omx_dual_bringup/package.xml`)
+  - `omx_gravity_comp_controller` (build files: `ws/src/omx_gravity_comp_controller/CMakeLists.txt`, `ws/src/omx_gravity_comp_controller/package.xml`)
+  - Config used: `ws/src/omx_dual_bringup/config/single_robot_gravity_comp.yaml`
+- **Key dependencies**
+  - Gazebo Classic + ROS integration: `gazebo_ros`, `gazebo_ros2_control`, `gazebo_ros_pkgs`
+  - ROS 2 control stack: `controller_manager`, `ros2controlcli`
+  - Description/xacro: `open_manipulator_x_description`, `xacro`, `robot_state_publisher`
+- **Launch file**
+  - `ws/src/omx_dual_bringup/launch/single_robot_test.launch.py`
+- **Commands**
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+
+# Build
+colcon build --symlink-install --packages-select omx_gravity_comp_controller omx_dual_bringup
+source install/setup.bash
+
+# Launch
+ros2 launch omx_dual_bringup single_robot_test.launch.py
+
+# Sanity checks
+ros2 control list_controllers -c /omx/controller_manager
+ros2 topic echo /omx/joint_states
+```
+
+### 4) Single Hardware Setup (1 real robot)
+
+- **Build packages/files**
+  - `omx_dual_bringup` (build files: `ws/src/omx_dual_bringup/CMakeLists.txt`, `ws/src/omx_dual_bringup/package.xml`)
+  - `omx_gravity_comp_controller` (build files: `ws/src/omx_gravity_comp_controller/CMakeLists.txt`, `ws/src/omx_gravity_comp_controller/package.xml`)
+  - Config used: `ws/src/omx_dual_bringup/config/single_robot_hardware_gravity_comp.yaml`
+- **Key dependencies**
+  - Dynamixel + hardware IO: `dynamixel_sdk`, `dynamixel_hardware_interface`
+  - ROS 2 control stack: `ros2_control`, `ros2_controllers`, `controller_manager`
+  - Description/xacro: `open_manipulator_x_description`, `xacro`, `robot_state_publisher`
+- **Launch file**
+  - `ws/src/omx_dual_bringup/launch/single_robot_hardware.launch.py`
+- **Commands**
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+
+# Build
+colcon build --symlink-install --packages-select omx_gravity_comp_controller omx_dual_bringup
+source install/setup.bash
+
+# Launch (auto-detects port, or override)
+ros2 launch omx_dual_bringup single_robot_hardware.launch.py port:=/dev/ttyUSB0 start_rviz:=false
+
+# Sanity checks
+ros2 control list_controllers -c /omx/controller_manager
+ros2 topic echo /omx/joint_states
+```
+
 ## Quick Start
 
 ### 1. Build the Workspace
