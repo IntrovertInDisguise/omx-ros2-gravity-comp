@@ -8,6 +8,7 @@ source /opt/ros/humble/setup.bash
 
 # Install apt dependencies
 echo "Installing apt dependencies..."
+# python3-serial provides pyserial for accessing /dev/tty* devices from Python tools/scripts.
 apt-get update
 apt-get install -y \
     python3-colcon-common-extensions \
@@ -23,6 +24,7 @@ apt-get install -y \
     ros-humble-joint-state-publisher-gui \
     ros-humble-kdl-parser \
     libserial-dev \
+    python3-serial \
     x11vnc \
     novnc
 
