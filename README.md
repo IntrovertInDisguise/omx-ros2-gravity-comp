@@ -5,9 +5,27 @@ This package provides launch files and configurations for running **two independ
 - **Variable Cartesian Impedance Control**: Time-varying stiffness/damping profiles for precise force control
 
 The robots can be controlled via:
-- **Hardware**: Two robots connected via separate serial ports through U2D2 ✅ *Tested*
+- **Hardware**: Two robots connected via separate serial ports through U2D2
 - **Simulation**: Gazebo simulation with RViz2 visualization
 - **Auto-detection**: Automatically detect hardware or fallback to simulation
+
+## Testing Status
+
+| Controller | Mode | Status | Notes |
+|------------|------|--------|-------|
+| **Gravity Compensation** | Dual Hardware | ✅ **TESTED** | Verified Feb 2026, two physical OM-X robots |
+| **Gravity Compensation** | Single Hardware | ✅ **TESTED** | Verified Feb 2026 |
+| **Gravity Compensation** | Dual Gazebo | ⚠️ Untested | Builds, launches, not verified |
+| **Gravity Compensation** | Single Gazebo | ⚠️ Untested | Builds, launches, not verified |
+| **Variable Stiffness** | Dual Hardware | 🔧 **BUILD ONLY** | Code complete, not run on hardware |
+| **Variable Stiffness** | Single Hardware | 🔧 **BUILD ONLY** | Code complete, not run on hardware |
+| **Variable Stiffness** | Dual Gazebo | 🔧 **BUILD ONLY** | Code complete, not run in sim |
+| **Variable Stiffness** | Single Gazebo | 🔧 **BUILD ONLY** | Code complete, not run in sim |
+
+**Legend:**
+- ✅ **TESTED**: Verified working on actual hardware/simulation
+- ⚠️ Untested: Code exists and builds, but not verified
+- 🔧 **BUILD ONLY**: Implementation complete, compiles successfully, awaiting testing
 
 ## Overview
 
@@ -25,16 +43,20 @@ You can run:
 
 ## Features
 
+### Implemented & Tested (Gravity Compensation)
 ✅ Proper namespace isolation (`robot1` and `robot2`)
 ✅ Independent YAML configurations for each robot
 ✅ Gravity compensation controller for each robot
-✅ **Variable Cartesian Impedance Controller** with time-varying stiffness profiles
-✅ **Hardware safety limits** (stiffness ≤65 N/m, damping ≤3 Ns/m for Robotis servos)
-✅ **Manipulability metrics publishing** (JJ^T eigenvalues, condition number, determinant)
-✅ Support for both hardware and Gazebo simulation
-✅ Automatic hardware detection
 ✅ RViz2 visualization for both robots
+✅ Automatic hardware detection
 ✅ **Dual hardware mode verified working** (Feb 2026)
+
+### Implemented - Awaiting Testing (Variable Stiffness)
+🔧 Variable Cartesian Impedance Controller with time-varying stiffness profiles
+🔧 Hardware safety limits (stiffness ≤65 N/m, damping ≤3 Ns/m for Robotis servos)
+🔧 Manipulability metrics publishing (JJ^T eigenvalues, condition number, determinant)
+🔧 Runtime waypoint command interface (offset + absolute modes, waypoint queue)
+🔧 Support for both hardware and Gazebo simulation
 
 ## Directory Structure
 
@@ -101,7 +123,9 @@ Notes:
 - If you are using the devcontainer, most dependencies are already installed during container setup.
 - Hardware modes need USB/serial access (e.g. `/dev/ttyUSB*` or `/dev/serial/by-id/*`).
 
-### 1) Dual Hardware Setup (2 real robots)
+### 1) Dual Hardware Setup (2 real robots) ✅ TESTED
+
+> ✅ **Status: VERIFIED** — Tested on two physical OpenMANIPULATOR-X robots, Feb 2026.
 
 - **Build packages/files**
   - `omx_dual_bringup` (build files: `ws/src/omx_dual_bringup/CMakeLists.txt`, `ws/src/omx_dual_bringup/package.xml`)
@@ -160,7 +184,9 @@ ros2 topic echo /robot1/joint_states
 - If arms feel stiff or overshoot, decrease `torque_scale`
 - Each robot can be tuned independently via its config file
 
-### 2) Dual Simulation Setup (2 robots in Gazebo)
+### 2) Dual Simulation Setup (2 robots in Gazebo) ⚠️ Untested
+
+> ⚠️ **Status: UNTESTED** — Builds and launches, but not verified in simulation.
 
 - **Build packages/files**
   - `omx_dual_bringup` (build files: `ws/src/omx_dual_bringup/CMakeLists.txt`, `ws/src/omx_dual_bringup/package.xml`)
@@ -208,7 +234,9 @@ ros2 control list_controllers -c /robot1/controller_manager
 ros2 control list_controllers -c /robot2/controller_manager
 ```
 
-### 3) Single Simulation Setup (1 robot in Gazebo)
+### 3) Single Simulation Setup (1 robot in Gazebo) ⚠️ Untested
+
+> ⚠️ **Status: UNTESTED** — Builds and launches, but not verified in simulation.
 
 - **Build packages/files**
   - `omx_dual_bringup` (build files: `ws/src/omx_dual_bringup/CMakeLists.txt`, `ws/src/omx_dual_bringup/package.xml`)
@@ -253,7 +281,9 @@ ros2 control list_controllers -c /omx/controller_manager
 ros2 topic echo /omx/joint_states
 ```
 
-### 4) Single Hardware Setup (1 real robot)
+### 4) Single Hardware Setup (1 real robot) ✅ TESTED
+
+> ✅ **Status: VERIFIED** — Tested on physical hardware, Feb 2026.
 
 - **Build packages/files**
   - `omx_dual_bringup` (build files: `ws/src/omx_dual_bringup/CMakeLists.txt`, `ws/src/omx_dual_bringup/package.xml`)
@@ -303,7 +333,9 @@ ros2 control list_controllers -c /omx/controller_manager
 ros2 topic echo /omx/joint_states
 ```
 
-### 5) Variable Cartesian Impedance Control (Dual Hardware)
+### 5) Variable Cartesian Impedance Control (Dual Hardware) 🔧 UNTESTED
+
+> ⚠️ **Status: BUILD ONLY** — This controller compiles and is feature-complete but has NOT been tested on actual hardware. Parameters may need tuning. Use with caution.
 
 The variable stiffness controller provides Cartesian impedance control with time-varying stiffness/damping profiles along trajectories.
 
@@ -386,7 +418,9 @@ ros2 topic echo /robot1/robot1_variable_stiffness/waypoint_active
 - **Queue behavior**: Multiple waypoints are queued and traversed sequentially
 - **Compliance**: Tracking smoothness depends on current stiffness (lower = softer tracking)
 
-### 6) Variable Cartesian Impedance Control (Dual Simulation)
+### 6) Variable Cartesian Impedance Control (Dual Simulation) 🔧 UNTESTED
+
+> ⚠️ **Status: BUILD ONLY** — This controller compiles but has NOT been tested in Gazebo simulation.
 
 - **Build packages/files**
   - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
@@ -421,7 +455,9 @@ ros2 control list_controllers -c /robot1/controller_manager
 ros2 topic echo /robot1/robot1_variable_stiffness/manipulability
 ```
 
-### 7) Variable Cartesian Impedance Control (Single Hardware)
+### 7) Variable Cartesian Impedance Control (Single Hardware) 🔧 UNTESTED
+
+> ⚠️ **Status: BUILD ONLY** — This controller compiles but has NOT been tested on actual hardware.
 
 - **Build packages/files**
   - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
@@ -461,7 +497,9 @@ ros2 control list_controllers -c /omx/controller_manager
 ros2 topic echo /omx/variable_stiffness_controller/manipulability
 ```
 
-### 8) Variable Cartesian Impedance Control (Single Simulation)
+### 8) Variable Cartesian Impedance Control (Single Simulation) 🔧 UNTESTED
+
+> ⚠️ **Status: BUILD ONLY** — This controller compiles but has NOT been tested in Gazebo simulation.
 
 - **Build packages/files**
   - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
