@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="omx_variable_stiffness_controller">
+  <class
+    name="omx_variable_stiffness_controller/OmxVariableStiffnessController"
+    type="omx_variable_stiffness_controller::OmxVariableStiffnessController"
+    base_class_type="controller_interface::ControllerInterface">
+    <description>Variable Cartesian impedance controller with time-varying stiffness profiles</description>
+  </class>
+</library>
