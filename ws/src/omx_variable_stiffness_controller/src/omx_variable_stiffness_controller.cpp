@@ -347,6 +347,18 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
     std::bind(&OmxVariableStiffnessController::stiffness_profile_callback_, this,
       std::placeholders::_1));
 
+  // Create subscriber for runtime waypoint commands
+  // Allows external nodes to send target poses as deviations or absolute targets
+  waypoint_sub_ = node->create_subscription<geometry_msgs::msg::PoseStamped>(
+    "~/waypoint_command",
+    10,
+    std::bind(&OmxVariableStiffnessController::waypoint_callback_, this,
+      std::placeholders::_1));
+
+  // Publisher for waypoint active status
+  waypoint_active_pub_ = node->create_publisher<std_msgs::msg::Bool>(
+    "~/waypoint_active", 10);
+
   RCLCPP_INFO(node->get_logger(),
     "[INIT] Configured: %zu joints, root='%s', tip='%s', torque_scale=%.3f",
     n, root_link_.c_str(), tip_link_.c_str(), torque_scale_);
@@ -675,8 +687,12 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
     }
   }
 
-  // Update desired position
+  // Update desired position from trajectory
   x_d_frame_.p = x_d_new;
+
+  // WAYPOINT OVERRIDE: If waypoints are queued, blend towards them
+  // This allows external nodes to command deviations from the trajectory
+  x_d_frame_.p = process_waypoints_(x_d_frame_.p, time_s);
 
   // Apply hardware safety limits before control law
   apply_safety_limits_();
@@ -888,6 +904,136 @@ void OmxVariableStiffnessController::publish_manipulability_metrics_()
   }
 
   manipulability_pub_->publish(msg);
+}
+
+void OmxVariableStiffnessController::waypoint_callback_(
+  const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+{
+  // Create waypoint command from message
+  WaypointCommand wp;
+  wp.position = KDL::Vector(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
+  wp.timestamp = get_node()->now().seconds();
+
+  // Check frame_id for offset mode
+  // "offset" or "relative" = offset from current trajectory target
+  // "absolute", "world", or empty = absolute position
+  std::string frame = msg->header.frame_id;
+  wp.is_offset = (frame == "offset" || frame == "relative");
+
+  // Add to queue (thread-safe)
+  {
+    std::lock_guard<std::mutex> lock(waypoint_mutex_);
+    waypoint_queue_.push(wp);
+  }
+
+  RCLCPP_INFO(get_node()->get_logger(),
+    "[WAYPOINT] Received %s waypoint: [%.3f, %.3f, %.3f], queue size: %zu",
+    wp.is_offset ? "OFFSET" : "ABSOLUTE",
+    wp.position.x(), wp.position.y(), wp.position.z(),
+    waypoint_queue_.size());
+}
+
+KDL::Vector OmxVariableStiffnessController::process_waypoints_(
+  const KDL::Vector & trajectory_target, double current_time)
+{
+  // Check for new waypoints in queue
+  {
+    std::lock_guard<std::mutex> lock(waypoint_mutex_);
+
+    // If current waypoint is done and queue has more, get next
+    if (!has_active_waypoint_ && !waypoint_queue_.empty()) {
+      current_waypoint_ = waypoint_queue_.front();
+      waypoint_queue_.pop();
+      has_active_waypoint_ = true;
+      waypoint_mode_active_ = true;
+      waypoint_start_time_ = current_time;
+
+      // Capture current position for smooth blending
+      // Use trajectory target as starting point for the blend
+      if (current_waypoint_.is_offset) {
+        current_waypoint_.position = trajectory_target + current_waypoint_.position;
+      }
+      waypoint_blend_start_ = trajectory_target;
+
+      RCLCPP_INFO(get_node()->get_logger(),
+        "[WAYPOINT] Activating waypoint -> [%.3f, %.3f, %.3f]",
+        current_waypoint_.position.x(),
+        current_waypoint_.position.y(),
+        current_waypoint_.position.z());
+    }
+  }
+
+  // Publish waypoint active status
+  std_msgs::msg::Bool status_msg;
+  status_msg.data = has_active_waypoint_;
+  waypoint_active_pub_->publish(status_msg);
+
+  // If no active waypoint, return trajectory target unchanged
+  if (!has_active_waypoint_) {
+    waypoint_mode_active_ = false;
+    return trajectory_target;
+  }
+
+  // Blend from waypoint_blend_start_ to current_waypoint_.position
+  double elapsed = current_time - waypoint_start_time_;
+  double blend_progress = std::min(elapsed / waypoint_blend_duration_, 1.0);
+
+  // Smooth cosine interpolation for blending
+  double smooth_progress = 0.5 * (1.0 - std::cos(M_PI * blend_progress));
+
+  KDL::Vector blended_target;
+  blended_target.x(waypoint_blend_start_.x() +
+    smooth_progress * (current_waypoint_.position.x() - waypoint_blend_start_.x()));
+  blended_target.y(waypoint_blend_start_.y() +
+    smooth_progress * (current_waypoint_.position.y() - waypoint_blend_start_.y()));
+  blended_target.z(waypoint_blend_start_.z() +
+    smooth_progress * (current_waypoint_.position.z() - waypoint_blend_start_.z()));
+
+  // Check if waypoint reached (blend complete)
+  if (blend_progress >= 1.0) {
+    // Check if more waypoints in queue
+    std::lock_guard<std::mutex> lock(waypoint_mutex_);
+    if (waypoint_queue_.empty()) {
+      // Waypoint completed, no more in queue
+      // Stay at waypoint position until new command or clear
+      RCLCPP_INFO(get_node()->get_logger(),
+        "[WAYPOINT] Reached waypoint, holding position");
+    } else {
+      // Grab next waypoint
+      current_waypoint_ = waypoint_queue_.front();
+      waypoint_queue_.pop();
+      waypoint_start_time_ = current_time;
+      waypoint_blend_start_ = blended_target;
+
+      if (current_waypoint_.is_offset) {
+        current_waypoint_.position = blended_target + current_waypoint_.position;
+      }
+
+      RCLCPP_INFO(get_node()->get_logger(),
+        "[WAYPOINT] Next waypoint -> [%.3f, %.3f, %.3f], remaining: %zu",
+        current_waypoint_.position.x(),
+        current_waypoint_.position.y(),
+        current_waypoint_.position.z(),
+        waypoint_queue_.size());
+    }
+  }
+
+  return blended_target;
+}
+
+void OmxVariableStiffnessController::clear_waypoints_()
+{
+  std::lock_guard<std::mutex> lock(waypoint_mutex_);
+
+  // Clear queue
+  while (!waypoint_queue_.empty()) {
+    waypoint_queue_.pop();
+  }
+
+  has_active_waypoint_ = false;
+  waypoint_mode_active_ = false;
+
+  RCLCPP_INFO(get_node()->get_logger(), "[WAYPOINT] Cleared all waypoints, returning to trajectory");
 }
 
 }  // namespace omx_variable_stiffness_controller
