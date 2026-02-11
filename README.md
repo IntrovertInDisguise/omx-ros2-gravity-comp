@@ -1,16 +1,21 @@
-# Dual Open Manipulator X with Gravity Compensation
+# Dual Open Manipulator X with Gravity Compensation & Variable Cartesian Impedance Control
 
-This package provides launch files and configurations for running **two independent Open Manipulator X robots** with gravity compensation in ROS2. The robots can be controlled via:
+This package provides launch files and configurations for running **two independent Open Manipulator X robots** with:
+- **Gravity Compensation**: Passive gravity compensation for compliant manipulation
+- **Variable Cartesian Impedance Control**: Time-varying stiffness/damping profiles for precise force control
+
+The robots can be controlled via:
 - **Hardware**: Two robots connected via separate serial ports through U2D2 ✅ *Tested*
 - **Simulation**: Gazebo simulation with RViz2 visualization
 - **Auto-detection**: Automatically detect hardware or fallback to simulation
 
 ## Overview
 
-This repository is a ROS 2 Humble workspace for OpenMANIPULATOR-X gravity compensation.
+This repository is a ROS 2 Humble workspace for OpenMANIPULATOR-X control.
 
 - **Primary bringup package:** `omx_dual_bringup`
-- **Gravity compensation controller plugin:** `omx_gravity_comp_controller`
+- **Gravity compensation controller:** `omx_gravity_comp_controller`
+- **Variable stiffness controller:** `omx_variable_stiffness_controller` (Cartesian impedance with trajectory tracking)
 - **Robot description + xacro:** `open_manipulator_x_description`
 - **Hardware path (Dynamixel):** `dynamixel_sdk` + `dynamixel_hardware_interface`
 
@@ -23,6 +28,9 @@ You can run:
 ✅ Proper namespace isolation (`robot1` and `robot2`)
 ✅ Independent YAML configurations for each robot
 ✅ Gravity compensation controller for each robot
+✅ **Variable Cartesian Impedance Controller** with time-varying stiffness profiles
+✅ **Hardware safety limits** (stiffness ≤65 N/m, damping ≤3 Ns/m for Robotis servos)
+✅ **Manipulability metrics publishing** (JJ^T eigenvalues, condition number, determinant)
 ✅ Support for both hardware and Gazebo simulation
 ✅ Automatic hardware detection
 ✅ RViz2 visualization for both robots
@@ -41,6 +49,20 @@ omx_dual_bringup/
 │   └── dual_hardware_gravity_comp.launch.py  # Hardware control
 └── rviz/
     └── dual_robots.rviz                 # RViz configuration
+
+omx_variable_stiffness_controller/
+├── config/
+│   ├── variable_stiffness_controller.yaml    # Single robot config
+│   ├── robot1_variable_stiffness.yaml        # Robot 1 impedance config
+│   ├── robot2_variable_stiffness.yaml        # Robot 2 impedance config
+│   └── *.csv                                 # Stiffness profile files
+├── launch/
+│   ├── variable_stiffness_control.launch.py  # Single robot launch
+│   ├── dual_hardware_variable_stiffness.launch.py
+│   └── dual_gazebo_variable_stiffness.launch.py
+└── scripts/
+    ├── load_stiffness.py             # Load CSV profiles at runtime
+    └── logger.py                      # Log controller state
 ```
 
 ## Setup Recipes (4 Modes)
@@ -280,6 +302,57 @@ ros2 launch omx_dual_bringup single_robot_hardware.launch.py port:=/dev/ttyUSB0 
 ros2 control list_controllers -c /omx/controller_manager
 ros2 topic echo /omx/joint_states
 ```
+
+### 5) Variable Cartesian Impedance Control (Dual Hardware)
+
+The variable stiffness controller provides Cartesian impedance control with time-varying stiffness/damping profiles along trajectories.
+
+- **Build packages/files**
+  - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
+  - Configs: `ws/src/omx_variable_stiffness_controller/config/robot*_variable_stiffness.yaml`
+- **Key dependencies**
+  - KDL for kinematics: `liborocos-kdl-dev`, `ros-humble-kdl-parser`
+  - Eigen for matrix operations: `libeigen3-dev`
+  - Same hardware dependencies as gravity comp mode
+- **Hardware Safety Limits** (enforced in software)
+  - Max Cartesian stiffness: **65 N/m**
+  - Max Cartesian damping: **3 Ns/m**
+- **Launch file**
+  - `ws/src/omx_variable_stiffness_controller/launch/dual_hardware_variable_stiffness.launch.py`
+- **Commands**
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+
+# Build
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description \
+  dynamixel_sdk dynamixel_sdk_custom_interfaces \
+  dynamixel_hardware_interface \
+  omx_variable_stiffness_controller
+source install/setup.bash
+
+# Launch dual arm variable stiffness
+ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py
+
+# Monitor manipulability metrics
+ros2 topic echo /robot1/robot1_variable_stiffness/manipulability
+# Output: [λ1, λ2, λ3, condition_number, determinant]
+
+# Load custom stiffness profile at runtime
+ros2 run omx_variable_stiffness_controller load_stiffness.py \
+  --file config/robot1_stiffness_profile.csv \
+  --controller /robot1/robot1_variable_stiffness
+```
+
+**Stiffness Profile CSV Format:**
+```csv
+s,Kx,Ky,Kz,Dx,Dy,Dz
+0.0,60.0,60.0,60.0,2.5,2.5,2.5
+0.5,35.0,35.0,35.0,1.4,1.4,1.4
+1.0,60.0,60.0,60.0,2.5,2.5,2.5
+```
+Where `s` is trajectory progress (0-1), K is stiffness (N/m), D is damping (Ns/m).
 
 ## Quick Start
 
