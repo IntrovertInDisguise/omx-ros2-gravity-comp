@@ -1,0 +1,142 @@
+# Variable Stiffness Controller Configuration for Robot 2 (Right Arm)
+# Independent trajectory and stiffness profiles
+
+/robot2/controller_manager:
+  ros__parameters:
+    update_rate: 500
+    use_sim_time: false
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    robot2_variable_stiffness:
+      type: omx_variable_stiffness_controller/OmxVariableStiffnessController
+
+# Params for robot2 controller - declare in both namespaces due to Gazebo namespace leakage
+/robot2/robot2_variable_stiffness:
+  ros__parameters:
+    # Joint configuration for Robot 2
+    joints:
+      - robot2_joint1
+      - robot2_joint2
+      - robot2_joint3
+      - robot2_joint4
+    root_link: world
+    tip_link: robot2_link5
+    robot_description_node: /robot2/robot_state_publisher
+    torque_scale: 200.0
+
+    # Robot 2 trajectory timing parameters (can be different from Robot 1)
+    homing_duration: 5.0
+    move_duration: 12.0      # Different timing from robot1
+    wait_duration: 2.0
+    max_rise_rate: 50.0
+
+    # Robot 2 Cartesian waypoints [x, y, z] in meters
+    # Configure for right arm workspace (mirrored or independent trajectory)
+    start_position: [0.20, -0.05, 0.15]
+    end_position: [0.25, -0.05, 0.20]
+    target_orientation: [0.0, 0.0, 0.0]
+
+    # Robot 2 Stiffness parameters (can be different stiffness characteristics)
+    # HARDWARE LIMITS: Max stiffness = 65 N/m, Max damping = 3 Ns/m
+    stiffness_homing: [50.0, 50.0, 50.0]
+    stiffness_rot: [15.0, 15.0, 15.0]
+    damping_rot: [0.8, 0.8, 0.8]
+    damping_default: [2.5, 2.5, 2.5]
+
+    # Robot 2 stiffness/damping profiles (independent from robot1)
+    stiffness_profile_x: []
+    stiffness_profile_y: []
+    stiffness_profile_z: []
+    damping_profile_x: []
+    damping_profile_y: []
+    damping_profile_z: []
+
+/robot1/robot2_variable_stiffness:
+  ros__parameters:
+    joints:
+      - robot2_joint1
+      - robot2_joint2
+      - robot2_joint3
+      - robot2_joint4
+    root_link: world
+    tip_link: robot2_link5
+    robot_description_node: /robot2/robot_state_publisher
+    torque_scale: 200.0
+    homing_duration: 5.0
+    move_duration: 12.0
+    wait_duration: 2.0
+    max_rise_rate: 50.0
+    start_position: [0.20, -0.05, 0.15]
+    end_position: [0.25, -0.05, 0.20]
+    target_orientation: [0.0, 0.0, 0.0]
+    stiffness_homing: [50.0, 50.0, 50.0]
+    stiffness_rot: [15.0, 15.0, 15.0]
+    damping_rot: [0.8, 0.8, 0.8]
+    damping_default: [2.5, 2.5, 2.5]
+    stiffness_profile_x: []
+    stiffness_profile_y: []
+    stiffness_profile_z: []
+    damping_profile_x: []
+    damping_profile_y: []
+    damping_profile_z: []
+
+# Also need robot1 controller params since both files may be loaded
+/robot1/robot1_variable_stiffness:
+  ros__parameters:
+    joints:
+      - robot1_joint1
+      - robot1_joint2
+      - robot1_joint3
+      - robot1_joint4
+    root_link: world
+    tip_link: robot1_link5
+    robot_description_node: /robot1/robot_state_publisher
+    torque_scale: 200.0
+    homing_duration: 5.0
+    move_duration: 10.0
+    wait_duration: 2.0
+    max_rise_rate: 50.0
+    start_position: [0.20, 0.05, 0.15]
+    end_position: [0.25, 0.05, 0.20]
+    target_orientation: [0.0, 0.0, 0.0]
+    stiffness_homing: [50.0, 50.0, 50.0]
+    stiffness_rot: [15.0, 15.0, 15.0]
+    damping_rot: [0.8, 0.8, 0.8]
+    damping_default: [2.5, 2.5, 2.5]
+    stiffness_profile_x: []
+    stiffness_profile_y: []
+    stiffness_profile_z: []
+    damping_profile_x: []
+    damping_profile_y: []
+    damping_profile_z: []
+
+/robot2/robot1_variable_stiffness:
+  ros__parameters:
+    joints:
+      - robot1_joint1
+      - robot1_joint2
+      - robot1_joint3
+      - robot1_joint4
+    root_link: world
+    tip_link: robot1_link5
+    robot_description_node: /robot1/robot_state_publisher
+    torque_scale: 200.0
+    homing_duration: 5.0
+    move_duration: 10.0
+    wait_duration: 2.0
+    max_rise_rate: 50.0
+    start_position: [0.20, 0.05, 0.15]
+    end_position: [0.25, 0.05, 0.20]
+    target_orientation: [0.0, 0.0, 0.0]
+    stiffness_homing: [50.0, 50.0, 50.0]
+    stiffness_rot: [15.0, 15.0, 15.0]
+    damping_rot: [0.8, 0.8, 0.8]
+    damping_default: [2.5, 2.5, 2.5]
+    stiffness_profile_x: []
+    stiffness_profile_y: []
+    stiffness_profile_z: []
+    damping_profile_x: []
+    damping_profile_y: []
+    damping_profile_z: []
