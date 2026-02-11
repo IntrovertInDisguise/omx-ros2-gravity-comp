@@ -354,6 +354,38 @@ s,Kx,Ky,Kz,Dx,Dy,Dz
 ```
 Where `s` is trajectory progress (0-1), K is stiffness (N/m), D is damping (Ns/m).
 
+**Runtime Waypoint Commands:**
+
+The controller supports publishing waypoint deviations at runtime via the `~/waypoint_command` topic (geometry_msgs/PoseStamped). The robot will smoothly blend towards the commanded position based on the current impedance settings.
+
+```bash
+# Publish an ABSOLUTE target position (world frame)
+ros2 topic pub --once /robot1/robot1_variable_stiffness/waypoint_command \
+  geometry_msgs/PoseStamped \
+  "{header: {frame_id: 'absolute'}, pose: {position: {x: 0.22, y: 0.0, z: 0.18}}}"
+
+# Publish an OFFSET from current trajectory (relative deviation)
+ros2 topic pub --once /robot1/robot1_variable_stiffness/waypoint_command \
+  geometry_msgs/PoseStamped \
+  "{header: {frame_id: 'offset'}, pose: {position: {x: 0.02, y: 0.0, z: -0.03}}}"
+
+# Queue multiple waypoints (they'll be traversed in order)
+ros2 topic pub --once /robot1/robot1_variable_stiffness/waypoint_command \
+  geometry_msgs/PoseStamped \
+  "{header: {frame_id: 'absolute'}, pose: {position: {x: 0.20, y: 0.05, z: 0.15}}}"
+ros2 topic pub --once /robot1/robot1_variable_stiffness/waypoint_command \
+  geometry_msgs/PoseStamped \
+  "{header: {frame_id: 'offset'}, pose: {position: {x: 0.0, y: -0.10, z: 0.0}}}"
+
+# Check if waypoint tracking is active
+ros2 topic echo /robot1/robot1_variable_stiffness/waypoint_active
+```
+
+- **frame_id = "offset" or "relative"**: Waypoint is treated as offset from current trajectory target
+- **frame_id = "absolute" or empty**: Waypoint is absolute position in world frame
+- **Queue behavior**: Multiple waypoints are queued and traversed sequentially
+- **Compliance**: Tracking smoothness depends on current stiffness (lower = softer tracking)
+
 ### 6) Variable Cartesian Impedance Control (Dual Simulation)
 
 - **Build packages/files**

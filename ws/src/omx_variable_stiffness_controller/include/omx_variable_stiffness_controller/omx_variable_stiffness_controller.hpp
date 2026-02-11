@@ -25,8 +25,13 @@
 #include <geometry_msgs/msg/pose.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_msgs/msg/bool.hpp>
+
+#include <queue>
+#include <mutex>
 
 namespace omx_variable_stiffness_controller
 {
@@ -82,6 +87,10 @@ private:
   double wait_duration_{2.0};
   double max_rise_rate_{100.0};  // Max stiffness change rate per second
 
+  // Waypoint command mode
+  bool waypoint_mode_active_{false};  // True when processing external waypoints
+  double waypoint_blend_duration_{2.0};  // Seconds to blend to new waypoint
+
   // Hardware safety limits for Robotis servos
   static constexpr double MAX_CARTESIAN_STIFFNESS = 65.0;   // N/m max
   static constexpr double MAX_CARTESIAN_DAMPING = 3.0;      // Ns/m max
@@ -134,6 +143,19 @@ private:
   State current_state_{State::INIT};
   double move_start_time_{0.0};
 
+  // Waypoint queue for runtime target commands
+  struct WaypointCommand {
+    KDL::Vector position;
+    bool is_offset;  // True = offset from trajectory, False = absolute position
+    double timestamp;
+  };
+  std::queue<WaypointCommand> waypoint_queue_;
+  std::mutex waypoint_mutex_;
+  WaypointCommand current_waypoint_;
+  KDL::Vector waypoint_blend_start_;  // Position when waypoint tracking started
+  double waypoint_start_time_{0.0};
+  bool has_active_waypoint_{false};
+
   // Error tracking for damping
   KDL::Twist last_x_error_;
 
@@ -157,6 +179,14 @@ private:
   // Subscriber for stiffness profile updates
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr stiffness_profile_sub_;
 
+  // Subscriber for runtime waypoint commands
+  // frame_id = "offset" -> offset from current trajectory target
+  // frame_id = "absolute" or empty -> absolute position in world frame
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr waypoint_sub_;
+
+  // Publisher for waypoint status (queue size, active waypoint, etc.)
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr waypoint_active_pub_;
+
   // Helpers
   std::string get_robot_description_xml_() const;
   std::string get_robot_description_from_node_(const std::string & node_name) const;
@@ -179,6 +209,15 @@ private:
 
   // Compute and publish manipulability metrics (JJ^T analysis)
   void publish_manipulability_metrics_();
+
+  // Waypoint command callback
+  void waypoint_callback_(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
+
+  // Process waypoint queue - returns modified target position if waypoint active
+  KDL::Vector process_waypoints_(const KDL::Vector & trajectory_target, double current_time);
+
+  // Clear all waypoints and return to trajectory following
+  void clear_waypoints_();
 };
 
 }  // namespace omx_variable_stiffness_controller
