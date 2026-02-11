@@ -354,6 +354,116 @@ s,Kx,Ky,Kz,Dx,Dy,Dz
 ```
 Where `s` is trajectory progress (0-1), K is stiffness (N/m), D is damping (Ns/m).
 
+### 6) Variable Cartesian Impedance Control (Dual Simulation)
+
+- **Build packages/files**
+  - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
+  - Configs: `ws/src/omx_variable_stiffness_controller/config/robot*_variable_stiffness.yaml`
+- **Key dependencies**
+  - Gazebo Classic + ROS integration: `gazebo_ros`, `gazebo_ros2_control`
+  - KDL for kinematics: `liborocos-kdl-dev`, `ros-humble-kdl-parser`
+  - Eigen for matrix operations: `libeigen3-dev`
+- **Launch file**
+  - `ws/src/omx_variable_stiffness_controller/launch/dual_gazebo_variable_stiffness.launch.py`
+- **Commands**
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+
+# Install dependencies
+sudo apt update
+sudo apt install -y ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control \
+  liborocos-kdl-dev ros-humble-kdl-parser libeigen3-dev
+
+# Build
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description \
+  omx_variable_stiffness_controller
+source install/setup.bash
+
+# Launch dual arm simulation
+ros2 launch omx_variable_stiffness_controller dual_gazebo_variable_stiffness.launch.py
+
+# Sanity checks
+ros2 control list_controllers -c /robot1/controller_manager
+ros2 topic echo /robot1/robot1_variable_stiffness/manipulability
+```
+
+### 7) Variable Cartesian Impedance Control (Single Hardware)
+
+- **Build packages/files**
+  - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
+  - Config: `ws/src/omx_variable_stiffness_controller/config/variable_stiffness_controller.yaml`
+- **Key dependencies**
+  - Dynamixel + hardware IO: `dynamixel_sdk`, `dynamixel_hardware_interface`
+  - KDL for kinematics: `liborocos-kdl-dev`, `ros-humble-kdl-parser`
+  - Eigen for matrix operations: `libeigen3-dev`
+- **Launch file**
+  - `ws/src/omx_variable_stiffness_controller/launch/variable_stiffness_control.launch.py`
+- **Commands**
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+
+# Install dependencies
+sudo apt update
+sudo apt install -y liborocos-kdl-dev ros-humble-kdl-parser libeigen3-dev
+
+# Build
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description \
+  dynamixel_sdk dynamixel_sdk_custom_interfaces \
+  dynamixel_hardware_interface \
+  omx_variable_stiffness_controller
+source install/setup.bash
+
+# Launch single arm hardware (auto-detects port)
+ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py
+
+# Or specify port explicitly
+ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py \
+  port:=/dev/ttyUSB0
+
+# Sanity checks
+ros2 control list_controllers -c /omx/controller_manager
+ros2 topic echo /omx/variable_stiffness_controller/manipulability
+```
+
+### 8) Variable Cartesian Impedance Control (Single Simulation)
+
+- **Build packages/files**
+  - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
+  - Config: `ws/src/omx_variable_stiffness_controller/config/variable_stiffness_controller.yaml`
+- **Key dependencies**
+  - Gazebo Classic + ROS integration: `gazebo_ros`, `gazebo_ros2_control`
+  - KDL for kinematics: `liborocos-kdl-dev`, `ros-humble-kdl-parser`
+  - Eigen for matrix operations: `libeigen3-dev`
+- **Launch file**
+  - `ws/src/omx_variable_stiffness_controller/launch/variable_stiffness_control.launch.py` with `sim:=true`
+- **Commands**
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+
+# Install dependencies
+sudo apt update
+sudo apt install -y ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control \
+  liborocos-kdl-dev ros-humble-kdl-parser libeigen3-dev
+
+# Build
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description \
+  omx_variable_stiffness_controller
+source install/setup.bash
+
+# Launch single arm simulation
+ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py sim:=true
+
+# Sanity checks
+ros2 control list_controllers -c /omx/controller_manager
+ros2 topic echo /omx/variable_stiffness_controller/manipulability
+```
+
 ## Quick Start
 
 ### 1. Build the Workspace
