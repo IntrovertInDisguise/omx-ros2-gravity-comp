@@ -1,7 +1,7 @@
 /robot1/controller_manager:
   ros__parameters:
     update_rate: 500
-    use_sim_time: true
+    use_sim_time: false
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -19,7 +19,7 @@
       - robot1_joint4
     root_link: world
     tip_link: robot1_link5
-    torque_scale: 1.0
+    torque_scale: 200.0
     robot_description_node: /robot1/robot_state_publisher
 
 /robot2/robot1_gravity_comp:
@@ -31,7 +31,7 @@
       - robot1_joint4
     root_link: world
     tip_link: robot1_link5
-    torque_scale: 1.0
+    torque_scale: 200.0
     robot_description_node: /robot1/robot_state_publisher
 
 # Also need robot2 controller params from this YAML since both files are loaded in shared process
@@ -44,7 +44,7 @@
       - robot2_joint4
     root_link: world
     tip_link: robot2_link5
-    torque_scale: 1.0
+    torque_scale: 200.0
     robot_description_node: /robot2/robot_state_publisher
 
 /robot2/robot2_gravity_comp:
@@ -56,5 +56,5 @@
       - robot2_joint4
     root_link: world
     tip_link: robot2_link5
-    torque_scale: 1.0
+    torque_scale: 200.0
     robot_description_node: /robot2/robot_state_publisher

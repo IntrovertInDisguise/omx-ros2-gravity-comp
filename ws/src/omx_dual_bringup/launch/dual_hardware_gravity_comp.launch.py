@@ -7,9 +7,9 @@
 import os
 import glob
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler, TimerAction
 from launch.conditions import IfCondition
-from launch.event_handlers import OnProcessExit
+from launch.event_handlers import OnProcessStart
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -78,6 +78,7 @@ def generate_launch_description():
         ' use_sim:=false',
         ' use_fake_hardware:=false',
         ' port_name:=', robot1_port,
+        ' prefix:=robot1_',
     ])
 
     urdf_robot2 = Command([
@@ -89,6 +90,7 @@ def generate_launch_description():
         ' use_sim:=false',
         ' use_fake_hardware:=false',
         ' port_name:=', robot2_port,
+        ' prefix:=robot2_',
     ])
 
     # Controller configuration
@@ -176,7 +178,7 @@ def generate_launch_description():
     load_gravity_comp_controller_robot1 = ExecuteProcess(
         cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
              '-c', '/robot1/controller_manager',
-             'gravity_comp_controller'],
+             'robot1_gravity_comp'],
         output='screen'
     )
 
@@ -191,27 +193,37 @@ def generate_launch_description():
     load_gravity_comp_controller_robot2 = ExecuteProcess(
         cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
              '-c', '/robot2/controller_manager',
-             'gravity_comp_controller'],
+             'robot2_gravity_comp'],
         output='screen'
     )
 
     # Event handlers to load controllers after controller manager starts
     load_robot1_controllers = RegisterEventHandler(
-        event_handler=OnProcessExit(
+        event_handler=OnProcessStart(
             target_action=robot1_controller_manager,
-            on_exit=[
-                load_joint_state_broadcaster_robot1,
-                load_gravity_comp_controller_robot1,
+            on_start=[
+                TimerAction(
+                    period=8.0,
+                    actions=[
+                        load_joint_state_broadcaster_robot1,
+                        load_gravity_comp_controller_robot1,
+                    ]
+                )
             ],
         )
     )
 
     load_robot2_controllers = RegisterEventHandler(
-        event_handler=OnProcessExit(
+        event_handler=OnProcessStart(
             target_action=robot2_controller_manager,
-            on_exit=[
-                load_joint_state_broadcaster_robot2,
-                load_gravity_comp_controller_robot2,
+            on_start=[
+                TimerAction(
+                    period=8.0,
+                    actions=[
+                        load_joint_state_broadcaster_robot2,
+                        load_gravity_comp_controller_robot2,
+                    ]
+                )
             ],
         )
     )
