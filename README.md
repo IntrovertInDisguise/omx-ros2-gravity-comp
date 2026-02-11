@@ -1,7 +1,7 @@
 # Dual Open Manipulator X with Gravity Compensation
 
 This package provides launch files and configurations for running **two independent Open Manipulator X robots** with gravity compensation in ROS2. The robots can be controlled via:
-- **Hardware**: Two robots connected via separate serial ports through U2D2
+- **Hardware**: Two robots connected via separate serial ports through U2D2 ✅ *Tested*
 - **Simulation**: Gazebo simulation with RViz2 visualization
 - **Auto-detection**: Automatically detect hardware or fallback to simulation
 
@@ -26,6 +26,7 @@ You can run:
 ✅ Support for both hardware and Gazebo simulation
 ✅ Automatic hardware detection
 ✅ RViz2 visualization for both robots
+✅ **Dual hardware mode verified working** (Feb 2026)
 
 ## Directory Structure
 
@@ -130,6 +131,12 @@ ros2 control list_controllers -c /robot1/controller_manager
 ros2 control list_controllers -c /robot2/controller_manager
 ros2 topic echo /robot1/joint_states
 ```
+
+**Tuning Notes:**
+- The `torque_scale` parameter in `robot*_gravity_comp.yaml` controls compensation strength (default: 200.0)
+- If arms feel weak/droopy, increase `torque_scale` (try 250-400)
+- If arms feel stiff or overshoot, decrease `torque_scale`
+- Each robot can be tuned independently via its config file
 
 ### 2) Dual Simulation Setup (2 robots in Gazebo)
 
@@ -661,3 +668,11 @@ ros2 launch omx_dual_bringup single_robot_hardware.launch.py port:=/dev/ttyUSB0
 
 source install/setup.bash
 ros2 launch omx_dual_bringup single_robot_hardware.launch.py port:=/dev/ttyUSB0
+
+
+
+
+
+
+
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py start_rviz:=false 2>&1
