@@ -47,12 +47,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'sim',
             default_value='false',
-            description='Whether to run in Gazebo simulation mode (requires Gazebo)'
-        ),
-        DeclareLaunchArgument(
-            'fake_hardware',
-            default_value='false',
-            description='Use mock hardware (no real robot or Gazebo needed)'
+            description='Use simulation mode (mock hardware, no real robot needed)'
         ),
         DeclareLaunchArgument(
             'start_rviz',
@@ -78,7 +73,6 @@ def generate_launch_description():
 
     port = LaunchConfiguration('port')
     sim = LaunchConfiguration('sim')
-    fake_hardware = LaunchConfiguration('fake_hardware')
     start_rviz = LaunchConfiguration('start_rviz')
     csv_file = LaunchConfiguration('csv_file')
     enable_logger = LaunchConfiguration('enable_logger')
@@ -91,15 +85,15 @@ def generate_launch_description():
     ])
 
     # Generate URDF from xacro
-    # use_sim=true requires Gazebo, use_fake_hardware=true mocks joints without Gazebo
+    # sim:=true enables mock hardware (GenericSystem) for testing without physical robot
     urdf = Command([
         PathJoinSubstitution([FindExecutable(name='xacro')]), ' ',
         PathJoinSubstitution([
             FindPackageShare('open_manipulator_x_description'),
             'urdf', 'open_manipulator_x_robot.urdf.xacro'
         ]),
-        ' use_sim:=', sim,
-        ' use_fake_hardware:=', fake_hardware,
+        ' use_sim:=false',
+        ' use_fake_hardware:=', sim,
         ' port_name:=', port,
         ' controller_config:=', controller_config,
         ' robot_namespace:=', robot_namespace,

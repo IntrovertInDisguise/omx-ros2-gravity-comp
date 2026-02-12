@@ -17,7 +17,7 @@ The robots can be controlled via:
 | **Gravity Compensation** | Single Hardware | ✅ **TESTED** | Verified Feb 2026 |
 | **Gravity Compensation** | Dual Gazebo | ⚠️ Untested | Builds, launches, not verified |
 | **Gravity Compensation** | Single Gazebo | ⚠️ Untested | Builds, launches, not verified |
-| **Variable Stiffness** | Single Fake Hardware | ✅ **TESTED** | Verified Feb 2026 with mock hardware |
+| **Variable Stiffness** | Single Sim | ✅ **TESTED** | Verified Feb 2026 with mock hardware |
 | **Variable Stiffness** | Single Hardware | 🔧 Ready | Awaiting physical robot connection |
 | **Variable Stiffness** | Dual Hardware | 🔧 Ready | Awaiting physical robot connection |
 | **Variable Stiffness** | Single Gazebo | ⚠️ Partial | gzserver requires software rendering |
@@ -343,7 +343,7 @@ ros2 topic echo /omx/joint_states
 
 ### 5) Variable Cartesian Impedance Control (Single Robot) ✅ TESTED
 
-> ✅ **Status: VERIFIED** — Tested with fake_hardware mode (mock Dynamixels), Feb 2026. Ready for physical hardware.
+> ✅ **Status: VERIFIED** — Tested in simulation mode (mock Dynamixels), Feb 2026. Ready for physical hardware.
 
 The variable stiffness controller provides Cartesian impedance control with:
 - Time-varying stiffness/damping profiles along trajectories
@@ -382,13 +382,13 @@ colcon build --symlink-install --packages-select \
   omx_variable_stiffness_controller
 source install/setup.bash
 
-# Launch with FAKE HARDWARE (for testing without robot)
+# Launch in SIMULATION MODE (for testing without robot)
 ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py \
-  fake_hardware:=true enable_logger:=false
+  sim:=true enable_logger:=false
 
 # Launch with REAL HARDWARE
 ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py \
-  sim:=false port:=/dev/ttyUSB0
+  port:=/dev/ttyUSB0
 
 # Check trajectory validation passed
 # Look for: "[SAFETY] Trajectory validation passed. Min manipulability=X.XXXX"
