@@ -418,6 +418,46 @@ ros2 topic echo /robot1/robot1_variable_stiffness/waypoint_active
 - **Queue behavior**: Multiple waypoints are queued and traversed sequentially
 - **Compliance**: Tracking smoothness depends on current stiffness (lower = softer tracking)
 
+**Data Logging:**
+
+The `logger.py` script logs controller state to CSV files for post-experiment analysis. By default, logs are saved to `/tmp/variable_stiffness_logs/` with timestamped filenames.
+
+```bash
+# Run the logger (in a separate terminal)
+ros2 run omx_variable_stiffness_controller logger.py
+
+# With custom output directory
+ros2 run omx_variable_stiffness_controller logger.py --ros-args \
+  -p output_dir:=/path/to/persistent/folder
+
+# Include Jacobian values (disabled by default due to size)
+ros2 run omx_variable_stiffness_controller logger.py --ros-args \
+  -p log_jacobian:=true
+```
+
+**Logged CSV columns:**
+| Category | Columns |
+|----------|---------|
+| Timestamp | `timestamp` |
+| Actual pose | `actual_x`, `actual_y`, `actual_z`, `actual_qx`, `actual_qy`, `actual_qz`, `actual_qw` |
+| Desired pose | `desired_x`, `desired_y`, `desired_z`, `desired_qx`, `desired_qy`, `desired_qz`, `desired_qw` |
+| End effector position | `ee_x`, `ee_y`, `ee_z` |
+| End effector orientation | `ee_roll`, `ee_pitch`, `ee_yaw` |
+| End effector velocities | `ee_vx`, `ee_vy`, `ee_vz`, `ee_wx`, `ee_wy`, `ee_wz` |
+| Joint velocities | `jv1`, `jv2`, `jv3`, `jv4` |
+| Commanded torques | `tau1`, `tau2`, `tau3`, `tau4` |
+| Stiffness (translational) | `Ktx`, `Kty`, `Ktz` |
+| Stiffness (rotational) | `Krx`, `Kry`, `Krz` |
+| Damping (translational) | `Dtx`, `Dty`, `Dtz` |
+| Damping (rotational) | `Drx`, `Dry`, `Drz` |
+| Jacobian (optional) | `J00`...`J53` (6x4 matrix elements) |
+
+**Saving logs:** Logs in `/tmp/` are cleared on reboot. To preserve a run:
+```bash
+# Copy to a persistent location
+cp /tmp/variable_stiffness_logs/variable_stiffness_log_*.csv ~/saved_logs/
+```
+
 ### 6) Variable Cartesian Impedance Control (Dual Simulation) 🔧 UNTESTED
 
 > ⚠️ **Status: BUILD ONLY** — This controller compiles but has NOT been tested in Gazebo simulation.
