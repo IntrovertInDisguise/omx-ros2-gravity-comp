@@ -39,12 +39,20 @@
     # Stiffness rate limiting (safety)
     max_rise_rate: 100.0          # Max stiffness change per second (N/m/s)
 
-    # Cartesian waypoints [x, y, z] in meters
-    start_position: [0.20, 0.0, 0.15]
+    # Trajectory safety parameters
+    use_joint_space_trajectory: true   # Enable safe joint-space IK-validated trajectory
+    num_trajectory_samples: 50         # Number of IK samples for validation
+    min_manipulability_threshold: 0.02 # Minimum singular value before DLS activates (increased for safety)
+    dls_damping_factor: 0.1            # λ for Damped Least Squares near singularities
+
+    # Cartesian waypoints [x, y, z] in meters (must be reachable by IK)
+    # Positions chosen to avoid singularities (elbow bent, not fully extended)
+    start_position: [0.05, 0.0, 0.15]
     end_position: [0.25, 0.0, 0.15]
 
     # Target orientation [roll, pitch, yaw] in radians
-    target_orientation: [0.0, 0.0, 0.0]
+    # Gripper pointing forward and down (negative pitch for stability)
+    target_orientation: [0.0, 0.3, 0.0]
 
     # Stiffness parameters (N/m for translation, Nm/rad for rotation)
     # HARDWARE LIMITS: Max translational stiffness = 65 N/m, Max damping = 3 Ns/m
@@ -59,9 +67,10 @@
     # Stiffness/damping profiles (optional - loaded from CSV by load_stiffness.py)
     # Can be filled dynamically at runtime via parameter updates or topics
     # Each profile should have the same length - values are interpolated along trajectory
-    stiffness_profile_x: []
-    stiffness_profile_y: []
-    stiffness_profile_z: []
-    damping_profile_x: []
-    damping_profile_y: []
-    damping_profile_z: []
+    # Note: Leave these commented out to use defaults; the load_stiffness.py node will set them if needed
+    # stiffness_profile_x: [50.0]
+    # stiffness_profile_y: [50.0]
+    # stiffness_profile_z: [50.0]
+    # damping_profile_x: [2.5]
+    # damping_profile_y: [2.5]
+    # damping_profile_z: [2.5]

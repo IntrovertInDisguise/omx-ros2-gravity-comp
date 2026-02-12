@@ -17,10 +17,11 @@ The robots can be controlled via:
 | **Gravity Compensation** | Single Hardware | ✅ **TESTED** | Verified Feb 2026 |
 | **Gravity Compensation** | Dual Gazebo | ⚠️ Untested | Builds, launches, not verified |
 | **Gravity Compensation** | Single Gazebo | ⚠️ Untested | Builds, launches, not verified |
-| **Variable Stiffness** | Dual Hardware | 🔧 **BUILD ONLY** | Code complete, not run on hardware |
-| **Variable Stiffness** | Single Hardware | 🔧 **BUILD ONLY** | Code complete, not run on hardware |
-| **Variable Stiffness** | Dual Gazebo | 🔧 **BUILD ONLY** | Code complete, not run in sim |
-| **Variable Stiffness** | Single Gazebo | 🔧 **BUILD ONLY** | Code complete, not run in sim |
+| **Variable Stiffness** | Single Fake Hardware | ✅ **TESTED** | Verified Feb 2026 with mock hardware |
+| **Variable Stiffness** | Single Hardware | 🔧 Ready | Awaiting physical robot connection |
+| **Variable Stiffness** | Dual Hardware | 🔧 Ready | Awaiting physical robot connection |
+| **Variable Stiffness** | Single Gazebo | ⚠️ Partial | gzserver requires software rendering |
+| **Variable Stiffness** | Dual Gazebo | ⚠️ Untested | Code complete, not run in sim |
 
 **Legend:**
 - ✅ **TESTED**: Verified working on actual hardware/simulation
@@ -54,9 +55,16 @@ You can run:
 ### Implemented - Awaiting Testing (Variable Stiffness)
 🔧 Variable Cartesian Impedance Controller with time-varying stiffness profiles
 🔧 Hardware safety limits (stiffness ≤65 N/m, damping ≤3 Ns/m for Robotis servos)
-🔧 Manipulability metrics publishing (JJ^T eigenvalues, condition number, determinant)
+🔧 Manipulability metrics publishing (singular values, condition number, σ_min)
 🔧 Runtime waypoint command interface (offset + absolute modes, waypoint queue)
 🔧 Support for both hardware and Gazebo simulation
+
+### Safety Features (Variable Stiffness Controller)
+✅ **Pre-trajectory IK Validation**: Validates entire trajectory via IK before execution
+✅ **Singularity Detection**: Uses σ_min (minimum singular value of EE jacobian) for robust singularity measure
+✅ **Joint Limits Enforcement**: Checks URDF joint limits at all waypoints
+✅ **Damped Least Squares (DLS)**: Adaptive damping near singularities prevents torque spikes
+✅ **Manipulability Threshold**: Rejects trajectories that pass through low-manipulability regions
 
 ## Directory Structure
 
@@ -333,9 +341,69 @@ ros2 control list_controllers -c /omx/controller_manager
 ros2 topic echo /omx/joint_states
 ```
 
-### 5) Variable Cartesian Impedance Control (Dual Hardware) 🔧 UNTESTED
+### 5) Variable Cartesian Impedance Control (Single Robot) ✅ TESTED
 
-> ⚠️ **Status: BUILD ONLY** — This controller compiles and is feature-complete but has NOT been tested on actual hardware. Parameters may need tuning. Use with caution.
+> ✅ **Status: VERIFIED** — Tested with fake_hardware mode (mock Dynamixels), Feb 2026. Ready for physical hardware.
+
+The variable stiffness controller provides Cartesian impedance control with:
+- Time-varying stiffness/damping profiles along trajectories
+- **Pre-trajectory IK validation** with singularity detection
+- **Damped Least Squares (DLS)** for safe operation near singularities
+- Joint-space trajectory interpolation for guaranteed safety
+
+#### Key Safety Features
+| Feature | Description |
+|---------|-------------|
+| **Trajectory Validation** | IK solved for 51 waypoints before execution; rejects unsafe paths |
+| **σ_min Threshold** | Uses minimum singular value (default: 0.02) as singularity measure |
+| **Joint Limits** | Loads limits from URDF; rejects IK solutions outside bounds |
+| **DLS Damping** | Adaptive λ² = λ₀² × (1 - σ_min/threshold)² near singularities |
+| **Stiffness Limits** | Hardware limits: 65 N/m translational, 20 Nm/rad rotational |
+
+- **Build packages/files**
+  - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
+  - Configs: `ws/src/omx_variable_stiffness_controller/config/variable_stiffness_controller.yaml`
+- **Key dependencies**
+  - KDL for kinematics: `liborocos-kdl-dev`, `ros-humble-kdl-parser`
+  - Eigen for matrix operations: `libeigen3-dev`
+  - Same hardware dependencies as gravity comp mode
+- **Launch file**
+  - `ws/src/omx_variable_stiffness_controller/launch/variable_stiffness_control.launch.py`
+- **Commands**
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+
+# Build
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description \
+  dynamixel_sdk dynamixel_sdk_custom_interfaces \
+  dynamixel_hardware_interface \
+  omx_variable_stiffness_controller
+source install/setup.bash
+
+# Launch with FAKE HARDWARE (for testing without robot)
+ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py \
+  fake_hardware:=true enable_logger:=false
+
+# Launch with REAL HARDWARE
+ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py \
+  sim:=false port:=/dev/ttyUSB0
+
+# Check trajectory validation passed
+# Look for: "[SAFETY] Trajectory validation passed. Min manipulability=X.XXXX"
+
+# Monitor manipulability metrics (published at 500Hz)
+ros2 topic echo /omx/variable_stiffness_controller/manipulability_metrics --once
+# Output: [cond_number, ee_x, ee_y, ee_z, σ1, σ2, σ3, σ4, ...]
+
+# Monitor torque commands
+ros2 topic echo /omx/variable_stiffness_controller/torque_values --once
+```
+
+### 6) Variable Cartesian Impedance Control (Dual Hardware) 🔧 Ready
+
+> 🔧 **Status: Ready** — Code complete, awaiting physical robot connection for testing.
 
 The variable stiffness controller provides Cartesian impedance control with time-varying stiffness/damping profiles along trajectories.
 
@@ -969,3 +1037,9 @@ ros2 launch omx_dual_bringup single_robot_hardware.launch.py port:=/dev/ttyUSB0
 
 
 source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py start_rviz:=false 2>&1
+
+
+
+
+
+pkill -9 ros2_control_node 2>/dev/null; pkill -9 robot_state_publisher 2>/dev/null; sleep 2; source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py sim:=false

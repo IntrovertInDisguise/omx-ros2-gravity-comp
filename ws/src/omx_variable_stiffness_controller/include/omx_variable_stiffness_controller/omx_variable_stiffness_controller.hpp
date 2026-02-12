@@ -19,6 +19,8 @@
 #include <kdl/chaindynparam.hpp>
 #include <kdl/chainjnttojacsolver.hpp>
 #include <kdl/chainfksolverpos_recursive.hpp>
+#include <kdl/chainiksolverpos_lma.hpp>
+#include <kdl/chainiksolvervel_pinv.hpp>
 
 #include <Eigen/Dense>
 
@@ -103,7 +105,22 @@ private:
   std::unique_ptr<KDL::ChainDynParam> dyn_param_;
   std::unique_ptr<KDL::ChainJntToJacSolver> jnt_to_jac_solver_;
   std::unique_ptr<KDL::ChainFkSolverPos_recursive> fk_solver_;
+  std::unique_ptr<KDL::ChainIkSolverPos_LMA> ik_solver_;
   KDL::Vector gravity_{0.0, 0.0, -9.81};
+
+  // Joint limits (loaded from URDF)
+  KDL::JntArray q_min_;
+  KDL::JntArray q_max_;
+  bool has_joint_limits_{false};
+
+  // Pre-computed joint-space trajectory (IK-validated waypoints)
+  std::vector<KDL::JntArray> trajectory_joint_waypoints_;
+  size_t num_trajectory_samples_{50};  // Number of points to sample along trajectory
+
+  // Safety parameters
+  double min_manipulability_thresh_{0.01};  // Pause/slow if below this
+  bool use_joint_space_trajectory_{true};   // Use validated joint-space path
+  double dls_damping_factor_{0.05};         // λ for Damped Least Squares near singularities
 
   // Joint state buffers
   KDL::JntArray q_;
@@ -209,6 +226,21 @@ private:
 
   // Compute and publish manipulability metrics (JJ^T analysis)
   void publish_manipulability_metrics_();
+
+  // Compute manipulability at current configuration
+  double compute_manipulability_() const;
+
+  // Validate and pre-compute joint-space trajectory via IK
+  bool validate_and_compute_trajectory_();
+
+  // Get interpolated joint position from pre-computed trajectory
+  bool get_trajectory_joints_(double s, KDL::JntArray & q_out) const;
+
+  // Load joint limits from URDF
+  bool load_joint_limits_(const std::string & urdf_xml);
+
+  // Check if joint array is within limits
+  bool is_within_joint_limits_(const KDL::JntArray & q) const;
 
   // Waypoint command callback
   void waypoint_callback_(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
