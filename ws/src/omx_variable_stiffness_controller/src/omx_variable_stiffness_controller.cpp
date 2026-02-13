@@ -67,7 +67,7 @@ OmxVariableStiffnessController::on_init()
   // Trajectory timing parameters
   auto_declare<double>("homing_duration", 5.0);
   auto_declare<double>("move_duration", 10.0);
-  auto_declare<double>("wait_duration", 2.0);
+  auto_declare<double>("wait_duration", 3.0);
   auto_declare<double>("max_rise_rate", 100.0);
 
   // Trajectory safety parameters
@@ -82,7 +82,7 @@ OmxVariableStiffnessController::on_init()
   auto_declare<std::vector<double>>("target_orientation", {0.0, 0.0, 0.0});
 
   // Stiffness/damping parameters (3-element arrays)
-  auto_declare<std::vector<double>>("stiffness_homing", {200.0, 200.0, 200.0});
+  auto_declare<std::vector<double>>("stiffness_homing", {20.0, 20.0, 20.0});
   auto_declare<std::vector<double>>("stiffness_rot", {50.0, 50.0, 50.0});
   auto_declare<std::vector<double>>("damping_rot", {5.0, 5.0, 5.0});
   auto_declare<std::vector<double>>("damping_default", {20.0, 20.0, 20.0});
@@ -214,6 +214,14 @@ controller_interface::CallbackReturn
 OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
 {
   auto node = get_node();
+
+  velocity_filter_alpha_ = 0.1; 
+  
+  // Initialize KDL solvers (Keep your existing solver initialization)
+  if (!kdl_chain_.getNrOfJoints()) {
+      RCLCPP_ERROR(get_node()->get_logger(), "KDL chain empty!");
+      return CallbackReturn::ERROR;
+  }
 
   // Load basic parameters
   joints_ = node->get_parameter("joints").as_string_array();
@@ -405,6 +413,12 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
     vector_to_string(end_pos_).c_str(),
     homing_duration_, move_duration_);
 
+    std::vector<double> start_pos_vec;
+  if (get_node()->get_parameter("start_position", start_pos_vec) && start_pos_vec.size() == 3) {
+      x_d_frame_.p = KDL::Vector(start_pos_vec[0], start_pos_vec[1], start_pos_vec[2]);
+  }else { RCLCPP_ERROR(get_node()->get_logger(), "Failed to load 'start_position' parameter or it has incorrect size. Using default."); x_d_frame_.p = start_pos_; }
+
+
   // Validate and pre-compute joint-space trajectory if enabled
   if (use_joint_space_trajectory_) {
     RCLCPP_INFO(node->get_logger(),
@@ -426,6 +440,8 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
       "Using raw Cartesian interpolation - may be unsafe!");
   }
 
+
+  RCLCPP_INFO(get_node()->get_logger(), "Configuration successful. Filter Alpha: %.2f", velocity_filter_alpha_);
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -522,45 +538,75 @@ bool OmxVariableStiffnessController::cache_interfaces_()
 }
 
 controller_interface::CallbackReturn
-OmxVariableStiffnessController::on_activate(const rclcpp_lifecycle::State &)
+// OmxVariableStiffnessController::on_activate(const rclcpp_lifecycle::State &)
+// {
+//   auto node = get_node();
+
+//   RCLCPP_INFO(node->get_logger(),
+//     "on_activate: %zu state interfaces, %zu command interfaces",
+//     state_interfaces_.size(), command_interfaces_.size());
+
+//   if (!cache_interfaces_()) {
+//     RCLCPP_ERROR(node->get_logger(),
+//       "Failed to cache required interfaces. Controller cannot run.");
+//     return controller_interface::CallbackReturn::ERROR;
+//   }
+
+//   // Read initial joint positions and compute starting Cartesian pose
+//   for (size_t i = 0; i < q_.rows(); ++i) {
+//     q_(i) = pos_if_[i]->get_value();
+//     q_dot_(i) = vel_if_[i] ? vel_if_[i]->get_value() : 0.0;
+//   }
+//   fk_solver_->JntToCart(q_, x_c_start_);
+
+//   // Set initial desired pose to current pose
+//   x_d_frame_ = x_c_start_;
+//   last_x_error_ = KDL::Twist::Zero();
+
+//   // Start state machine
+//   current_state_ = State::HOMING;
+//   move_start_time_ = node->get_clock()->now().seconds();
+
+//   // Zero command interfaces initially
+//   for (auto & ci : command_interfaces_) {
+//     (void)ci.set_value(0.0);
+//   }
+
+//   RCLCPP_INFO(node->get_logger(),
+//     "[STARTING] Initial EE pose: p=%s",
+//     vector_to_string(x_c_start_.p).c_str());
+
+//   return controller_interface::CallbackReturn::SUCCESS;
+// }
+
+CallbackReturn OmxVariableStiffnessController::on_activate(const rclcpp_lifecycle::State &)
 {
-  auto node = get_node();
-
-  RCLCPP_INFO(node->get_logger(),
-    "on_activate: %zu state interfaces, %zu command interfaces",
-    state_interfaces_.size(), command_interfaces_.size());
-
-  if (!cache_interfaces_()) {
-    RCLCPP_ERROR(node->get_logger(),
-      "Failed to cache required interfaces. Controller cannot run.");
-    return controller_interface::CallbackReturn::ERROR;
+  // 1. Clear buffers
+  std::fill(joint_positions_.begin(), joint_positions_.end(), 0.0);
+  std::fill(joint_velocities_.begin(), joint_velocities_.end(), 0.0);
+  
+  // 2. Read initial hardware state
+  for (size_t i = 0; i < joints_.size(); ++i) {
+    if (std::isnan(joint_state_interfaces_[i].get_value())) {
+      RCLCPP_ERROR(get_node()->get_logger(), "Joint %s has NaN value!", joints_[i].c_str());
+      return CallbackReturn::ERROR;
+    }
+    q_(i) = joint_state_interfaces_[i].get_value();
   }
 
-  // Read initial joint positions and compute starting Cartesian pose
-  for (size_t i = 0; i < q_.rows(); ++i) {
-    q_(i) = pos_if_[i]->get_value();
-    q_dot_(i) = vel_if_[i] ? vel_if_[i]->get_value() : 0.0;
-  }
-  fk_solver_->JntToCart(q_, x_c_start_);
-
-  // Set initial desired pose to current pose
-  x_d_frame_ = x_c_start_;
+  // 3. [CRITICAL FIX] Sync Desired Pose to Actual Pose
+  fk_solver_->JntToCart(q_, x_c_frame); 
+  x_d_frame_ = x_c_frame;  // <--- The Magic Line. Target = Current.
+  
+  // 4. Reset Filters and History
+  x_dot_error_filtered_ = KDL::Twist::Zero();
   last_x_error_ = KDL::Twist::Zero();
+  first_update_ = true;
 
-  // Start state machine
-  current_state_ = State::HOMING;
-  move_start_time_ = node->get_clock()->now().seconds();
-
-  // Zero command interfaces initially
-  for (auto & ci : command_interfaces_) {
-    (void)ci.set_value(0.0);
-  }
-
-  RCLCPP_INFO(node->get_logger(),
-    "[STARTING] Initial EE pose: p=%s",
-    vector_to_string(x_c_start_.p).c_str());
-
-  return controller_interface::CallbackReturn::SUCCESS;
+  RCLCPP_INFO(get_node()->get_logger(), "Activated. Holding current pose: [%f, %f, %f]", 
+    x_c_frame.p.x(), x_c_frame.p.y(), x_c_frame.p.z());
+    
+  return CallbackReturn::SUCCESS;
 }
 
 controller_interface::CallbackReturn
@@ -938,12 +984,18 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
   desired_pose_pub_->publish(desired_pose_msg);
 
   // 5. COMMAND TORQUES TO HARDWARE
-  for (size_t i = 0; i < n; ++i) {
-    (void)eff_cmd_if_[i]->set_value(tau_total(i));
-  }
-
-  return controller_interface::return_type::OK;
-}
+  // for (size_t i = 0; i < n; ++i) {
+  //   (void)eff_cmd_if_[i]->set_value(tau_total(i));
+  // }
+  for (size_t i = 0; i < joints_.size(); ++i) {
+     // Add Gravity Compensation (if not already handled by hardware/firmware)
+     // tau_cmd_interfaces_[i].set_value(tau_eigen(i) + G_(i)); 
+     
+     // Note: If using OpenManipulator-X, ensure 'torque_scale' is applied 
+     // if the hardware interface expects raw currents instead of Nm.
+double scaled_torque = tau_eigen(i) * torque_scale_; tau_cmd_interfaces_[i].set_value(scaled_torque); } 
+return controller_interface::return_type::OK; 
+} 
 
 void OmxVariableStiffnessController::apply_safety_limits_()
 {
