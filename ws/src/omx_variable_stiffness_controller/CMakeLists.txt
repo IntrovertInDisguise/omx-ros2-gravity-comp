@@ -21,6 +21,8 @@ find_package(std_msgs REQUIRED)
 find_package(tf2_kdl REQUIRED)
 find_package(tf2_eigen REQUIRED)
 
+
+
 add_library(${PROJECT_NAME} SHARED
   src/omx_variable_stiffness_controller.cpp
 )
@@ -78,5 +80,13 @@ install(FILES plugin.xml
 install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME}
 )
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_homing_behavior
+    test/test_homing_behavior.py
+    PYTHON_EXECUTABLE "${PYTHON_EXECUTABLE}"
+  )
+endif()
 
 ament_package()

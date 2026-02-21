@@ -1,0 +1,91 @@
+[0.000000] (-) TimerEvent: {}
+[0.000423] (-) JobUnselected: {'identifier': 'dynamixel_hardware_interface'}
+[0.000651] (-) JobUnselected: {'identifier': 'dynamixel_sdk'}
+[0.000680] (-) JobUnselected: {'identifier': 'dynamixel_sdk_custom_interfaces'}
+[0.000706] (-) JobUnselected: {'identifier': 'dynamixel_sdk_examples'}
+[0.000732] (-) JobUnselected: {'identifier': 'omx_dual_bringup'}
+[0.000758] (-) JobUnselected: {'identifier': 'omx_gravity_comp_controller'}
+[0.000783] (-) JobUnselected: {'identifier': 'open_manipulator'}
+[0.000808] (-) JobUnselected: {'identifier': 'open_manipulator_x_bringup'}
+[0.000834] (-) JobUnselected: {'identifier': 'open_manipulator_x_description'}
+[0.000860] (-) JobUnselected: {'identifier': 'open_manipulator_x_gui'}
+[0.000885] (-) JobUnselected: {'identifier': 'open_manipulator_x_moveit_config'}
+[0.000921] (-) JobUnselected: {'identifier': 'open_manipulator_x_playground'}
+[0.000931] (-) JobUnselected: {'identifier': 'open_manipulator_x_teleop'}
+[0.000942] (omx_variable_stiffness_controller) JobQueued: {'identifier': 'omx_variable_stiffness_controller', 'dependencies': OrderedDict()}
+[0.001257] (omx_variable_stiffness_controller) JobStarted: {'identifier': 'omx_variable_stiffness_controller'}
+[0.010104] (omx_variable_stiffness_controller) JobProgress: {'identifier': 'omx_variable_stiffness_controller', 'progress': 'cmake'}
+[0.011205] (omx_variable_stiffness_controller) Command: {'cmd': ['/usr/bin/cmake', '/workspaces/omx_ros2/ws/src/omx_variable_stiffness_controller', '-DCMAKE_INSTALL_PREFIX=/workspaces/omx_ros2/install/omx_variable_stiffness_controller'], 'cwd': '/workspaces/omx_ros2/build/omx_variable_stiffness_controller', 'env': OrderedDict([('PYTHON_BASIC_REPL', '1'), ('HOSTNAME', '803b6a3ac0d5'), ('GIT_ASKPASS', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/extensions/git/dist/askpass.sh'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/workspaces/omx_ros2/ws/install/open_manipulator_x_gui/lib:/workspaces/omx_ros2/ws/install/omx_variable_stiffness_controller/lib:/workspaces/omx_ros2/ws/install/omx_gravity_comp_controller/lib:/workspaces/omx_ros2/ws/install/dynamixel_sdk_custom_interfaces/lib:/workspaces/omx_ros2/ws/install/dynamixel_hardware_interface/lib:/workspaces/omx_ros2/ws/install/dynamixel_sdk/lib:/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('BROWSER', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/bin/helpers/browser.sh'), ('HOME', '/root'), ('TERM_PROGRAM_VERSION', '1.109.4'), ('VSCODE_IPC_HOOK_CLI', '/tmp/vscode-ipc-08e69c42-8c1b-4894-8bc2-6b795ab53150.sock'), ('ROS_PYTHON_VERSION', '3'), ('VSCODE_GIT_ASKPASS_MAIN', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/extensions/git/dist/askpass-main.js'), ('VSCODE_GIT_ASKPASS_NODE', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/node'), ('PYDEVD_DISABLE_FILE_VALIDATION', '1'), ('BUNDLED_DEBUGPY_PATH', '/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/libs/debugpy'), ('VSCODE_PYTHON_AUTOACTIVATE_GUARD', '1'), ('COLORTERM', 'truecolor'), ('REMOTE_CONTAINERS', 'true'), ('WAYLAND_DISPLAY', 'vscode-wayland-453c1dcc-c231-4ebd-9cad-f9db3e87e80c.sock'), ('COLCON_PREFIX_PATH', '/workspaces/omx_ros2/ws/install'), ('ROS_DISTRO', 'humble'), ('REMOTE_CONTAINERS_IPC', '/tmp/vscode-remote-containers-ipc-d75ffb8d-a4c4-45b0-be9c-2f6f8de6d879.sock'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('TERM', 'xterm-256color'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts'), ('XDG_RUNTIME_DIR', '/tmp/user/0'), ('REMOTE_CONTAINERS_SOCKETS', '["/tmp/.X11-unix/X0","/root/.gnupg/S.gpg-agent"]'), ('DISPLAY', ':0'), ('VSCODE_DEBUGPY_ADAPTER_ENDPOINTS', '/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/.noConfigDebugAdapterEndpoints/endpoint-89051de3c4270cac.txt'), ('LANG', 'C.UTF-8'), ('PYTHONSTARTUP', '/root/.vscode-server/data/User/workspaceStorage/9b980423a3389ed1b413d7da5e725363/ms-python.python/pythonrc.py'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('VSCODE_GIT_IPC_HANDLE', '/tmp/user/0/vscode-git-7146844c80.sock'), ('TERM_PROGRAM', 'vscode'), ('AMENT_PREFIX_PATH', '/workspaces/omx_ros2/ws/install/open_manipulator:/workspaces/omx_ros2/ws/install/open_manipulator_x_teleop:/workspaces/omx_ros2/ws/install/open_manipulator_x_playground:/workspaces/omx_ros2/ws/install/open_manipulator_x_moveit_config:/workspaces/omx_ros2/ws/install/open_manipulator_x_gui:/workspaces/omx_ros2/ws/install/open_manipulator_x_bringup:/workspaces/omx_ros2/ws/install/open_manipulator_x_description:/workspaces/omx_ros2/ws/install/omx_variable_stiffness_controller:/workspaces/omx_ros2/ws/install/omx_gravity_comp_controller:/workspaces/omx_ros2/ws/install/omx_dual_bringup:/workspaces/omx_ros2/ws/install/dynamixel_sdk_examples:/workspaces/omx_ros2/ws/install/dynamixel_sdk_custom_interfaces:/workspaces/omx_ros2/ws/install/dynamixel_hardware_interface:/workspaces/omx_ros2/ws/install/dynamixel_sdk:/opt/ros/humble'), ('REMOTE_CONTAINERS_DISPLAY_SOCK', '/tmp/.X11-unix/X0'), ('SHELL', '/bin/bash'), ('VSCODE_GIT_ASKPASS_EXTRA_ARGS', ''), ('PWD', '/workspaces/omx_ros2/build/omx_variable_stiffness_controller'), ('LC_ALL', 'C.UTF-8'), ('PYTHONPATH', '/workspaces/omx_ros2/ws/install/omx_variable_stiffness_controller/local/lib/python3.10/dist-packages:/workspaces/omx_ros2/ws/install/dynamixel_sdk_custom_interfaces/local/lib/python3.10/dist-packages:/workspaces/omx_ros2/ws/install/dynamixel_sdk/local/lib/python3.10/dist-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/workspaces/omx_ros2/ws/install/open_manipulator:/workspaces/omx_ros2/ws/install/open_manipulator_x_teleop:/workspaces/omx_ros2/ws/install/open_manipulator_x_playground:/workspaces/omx_ros2/ws/install/open_manipulator_x_moveit_config:/workspaces/omx_ros2/ws/install/open_manipulator_x_gui:/workspaces/omx_ros2/ws/install/open_manipulator_x_bringup:/workspaces/omx_ros2/ws/install/open_manipulator_x_description:/workspaces/omx_ros2/ws/install/omx_variable_stiffness_controller:/workspaces/omx_ros2/ws/install/omx_gravity_comp_controller:/workspaces/omx_ros2/ws/install/omx_dual_bringup:/workspaces/omx_ros2/ws/install/dynamixel_sdk_examples:/workspaces/omx_ros2/ws/install/dynamixel_sdk_custom_interfaces:/workspaces/omx_ros2/ws/install/dynamixel_hardware_interface:/workspaces/omx_ros2/ws/install/dynamixel_sdk:/opt/ros/humble')]), 'shell': False}
+[0.062507] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[0.099922] (-) TimerEvent: {}
+[0.106332] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[0.112848] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.170800] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.176084] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.176347] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.176534] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.178849] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.200037] (-) TimerEvent: {}
+[0.241805] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.247098] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.247348] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.247731] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.251861] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.12 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[0.300231] (-) TimerEvent: {}
+[0.360931] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[0.400542] (-) TimerEvent: {}
+[0.434270] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rclcpp: 16.0.17 (/opt/ros/humble/share/rclcpp/cmake)\n'}
+[0.468661] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[0.473389] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[0.480610] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[0.490419] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[0.500753] (-) TimerEvent: {}
+[0.503235] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[0.539476] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[0.542122] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.9 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[0.600967] (-) TimerEvent: {}
+[0.611102] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  \n'}
+[0.630735] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/humble/include  \n'}
+[0.660699] (omx_variable_stiffness_controller) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[0.667424] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Looking for pthread.h\n'}
+[0.701305] (-) TimerEvent: {}
+[0.739219] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Looking for pthread.h - found\n'}
+[0.739550] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[0.801640] (-) TimerEvent: {}
+[0.818089] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[0.819763] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[0.886207] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rclcpp_lifecycle: 16.0.17 (/opt/ros/humble/share/rclcpp_lifecycle/cmake)\n'}
+[0.901733] (-) TimerEvent: {}
+[0.903494] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found controller_interface: 2.53.0 (/opt/ros/humble/share/controller_interface/cmake)\n'}
+[1.002051] (-) TimerEvent: {}
+[1.011023] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found kdl_parser: 2.6.4 (/opt/ros/humble/share/kdl_parser/cmake)\n'}
+[1.025763] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)\n'}
+[1.026534] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found Eigen3: TRUE (found version "3.4.0") \n'}
+[1.026591] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Ensuring Eigen3 include directory is part of orocos-kdl CMake target\n'}
+[1.030016] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found urdf: 2.6.1 (/opt/ros/humble/share/urdf/cmake)\n'}
+[1.038092] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found tf2_kdl: 0.25.18 (/opt/ros/humble/share/tf2_kdl/cmake)\n'}
+[1.086085] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found tf2_eigen: 0.25.18 (/opt/ros/humble/share/tf2_eigen/cmake)\n'}
+[1.089452] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found ament_cmake_pytest: 1.3.12 (/opt/ros/humble/share/ament_cmake_pytest/cmake)\n'}
+[1.098599] (omx_variable_stiffness_controller) StderrLine: {'line': b'\x1b[31mCMake Error at CMakeLists.txt:25 (find_package):\n'}
+[1.098722] (omx_variable_stiffness_controller) StderrLine: {'line': b'  By not providing "Findlaunch_testing.cmake" in CMAKE_MODULE_PATH this\n'}
+[1.098759] (omx_variable_stiffness_controller) StderrLine: {'line': b'  project has asked CMake to find a package configuration file provided by\n'}
+[1.098787] (omx_variable_stiffness_controller) StderrLine: {'line': b'  "launch_testing", but CMake did not find one.\n'}
+[1.098814] (omx_variable_stiffness_controller) StderrLine: {'line': b'\n'}
+[1.098840] (omx_variable_stiffness_controller) StderrLine: {'line': b'  Could not find a package configuration file provided by "launch_testing"\n'}
+[1.098866] (omx_variable_stiffness_controller) StderrLine: {'line': b'  with any of the following names:\n'}
+[1.098892] (omx_variable_stiffness_controller) StderrLine: {'line': b'\n'}
+[1.098917] (omx_variable_stiffness_controller) StderrLine: {'line': b'    launch_testingConfig.cmake\n'}
+[1.098940] (omx_variable_stiffness_controller) StderrLine: {'line': b'    launch_testing-config.cmake\n'}
+[1.098964] (omx_variable_stiffness_controller) StderrLine: {'line': b'\n'}
+[1.098988] (omx_variable_stiffness_controller) StderrLine: {'line': b'  Add the installation prefix of "launch_testing" to CMAKE_PREFIX_PATH or set\n'}
+[1.099012] (omx_variable_stiffness_controller) StderrLine: {'line': b'  "launch_testing_DIR" to a directory containing one of the above files.  If\n'}
+[1.099039] (omx_variable_stiffness_controller) StderrLine: {'line': b'  "launch_testing" provides a separate development package or SDK, be sure it\n'}
+[1.099061] (omx_variable_stiffness_controller) StderrLine: {'line': b'  has been installed.\n'}
+[1.099083] (omx_variable_stiffness_controller) StderrLine: {'line': b'\n'}
+[1.099107] (omx_variable_stiffness_controller) StderrLine: {'line': b'\x1b[0m\n'}
+[1.099130] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Configuring incomplete, errors occurred!\n'}
+[1.099160] (omx_variable_stiffness_controller) StdoutLine: {'line': b'See also "/workspaces/omx_ros2/build/omx_variable_stiffness_controller/CMakeFiles/CMakeOutput.log".\n'}
+[1.102251] (-) TimerEvent: {}
+[1.105894] (omx_variable_stiffness_controller) CommandEnded: {'returncode': 1}
+[1.123353] (omx_variable_stiffness_controller) JobEnded: {'identifier': 'omx_variable_stiffness_controller', 'rc': 1}
+[1.134177] (-) EventReactorShutdown: {}

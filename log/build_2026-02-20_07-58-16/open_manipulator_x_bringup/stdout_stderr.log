@@ -1,0 +1,47 @@
+-- The C compiler identification is GNU 11.4.0
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 1.3.12 (/opt/ros/humble/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /workspaces/omx_ros2/build/open_manipulator_x_bringup
+-- Install configuration: ""
+-- Execute custom install script
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/launch/base.launch.py
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/launch/fake.launch.py
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/launch/gazebo.launch.py
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/launch/gazebo_ros2_control_rviz.launch.py
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/launch/gazebo_rviz.launch.py
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/launch/hardware.launch.py
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/config/gazebo_controller_manager.yaml
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/config/hardware_controller_manager.yaml
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/rviz/open_manipulator_x.rviz
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/worlds/.gitkeep
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/99-open-manipulator-cdc.rules
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/lib/open_manipulator_x_bringup/create_udev_rules
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/ament_index/resource_index/package_run_dependencies/open_manipulator_x_bringup
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/ament_index/resource_index/parent_prefix_path/open_manipulator_x_bringup
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/environment/ament_prefix_path.sh
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/environment/ament_prefix_path.dsv
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/environment/path.sh
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/environment/path.dsv
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/local_setup.bash
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/local_setup.sh
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/local_setup.zsh
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/local_setup.dsv
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/package.dsv
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/ament_index/resource_index/packages/open_manipulator_x_bringup
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/cmake/open_manipulator_x_bringupConfig.cmake
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/cmake/open_manipulator_x_bringupConfig-version.cmake
+-- Symlinking: /workspaces/omx_ros2/install/open_manipulator_x_bringup/share/open_manipulator_x_bringup/package.xml

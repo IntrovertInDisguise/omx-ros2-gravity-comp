@@ -1,0 +1,1 @@
+/workspaces/omx_ros2/build/omx_variable_stiffness_controller/ament_cmake_python/omx_variable_stiffness_controller/omx_variable_stiffness_controller.egg-info/SOURCES.txt

@@ -1,0 +1,1 @@
+/workspaces/omx_ros2/build/open_manipulator_x_bringup/ament_cmake_core/open_manipulator_x_bringupConfig-version.cmake

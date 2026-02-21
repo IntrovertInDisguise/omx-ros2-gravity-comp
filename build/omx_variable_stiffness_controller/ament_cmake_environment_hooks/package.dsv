@@ -1,0 +1,4 @@
+source;share/omx_variable_stiffness_controller/local_setup.bash
+source;share/omx_variable_stiffness_controller/local_setup.dsv
+source;share/omx_variable_stiffness_controller/local_setup.sh
+source;share/omx_variable_stiffness_controller/local_setup.zsh
