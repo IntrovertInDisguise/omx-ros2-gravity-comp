@@ -1,0 +1,17 @@
+[31mCMake Error at CMakeLists.txt:86 (find_package):
+  By not providing "Findlaunch_testing.cmake" in CMAKE_MODULE_PATH this
+  project has asked CMake to find a package configuration file provided by
+  "launch_testing", but CMake did not find one.
+
+  Could not find a package configuration file provided by "launch_testing"
+  with any of the following names:
+
+    launch_testingConfig.cmake
+    launch_testing-config.cmake
+
+  Add the installation prefix of "launch_testing" to CMAKE_PREFIX_PATH or set
+  "launch_testing_DIR" to a directory containing one of the above files.  If
+  "launch_testing" provides a separate development package or SDK, be sure it
+  has been installed.
+
+[0m

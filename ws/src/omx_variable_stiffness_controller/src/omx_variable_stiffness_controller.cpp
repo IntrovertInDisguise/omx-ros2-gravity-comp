@@ -5,7 +5,9 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <fstream>
 #include <chrono>
+#include <limits>
 
 #include <kdl/chaindynparam.hpp>
 #include <kdl/jntarray.hpp>
@@ -15,6 +17,8 @@
 #include <rclcpp/wait_for_message.hpp>
 #include <tf2_kdl/tf2_kdl.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
+
+#include <Eigen/Geometry>   // for slerp
 
 #include "pluginlib/class_list_macros.hpp"
 
@@ -27,6 +31,20 @@ static std::string vector_to_string(const KDL::Vector & v)
   std::stringstream ss;
   ss << "[" << v.x() << ", " << v.y() << ", " << v.z() << "]";
   return ss.str();
+}
+
+// Convert KDL::Rotation to Eigen::Quaterniond
+static Eigen::Quaterniond eigen_from_kdl(const KDL::Rotation & r)
+{
+  double x, y, z, w;
+  r.GetQuaternion(x, y, z, w);
+  return Eigen::Quaterniond(w, x, y, z);  // Eigen stores (w,x,y,z)
+}
+
+// Convert Eigen::Quaterniond to KDL::Rotation
+static KDL::Rotation kdl_from_eigen(const Eigen::Quaterniond & q)
+{
+  return KDL::Rotation::Quaternion(q.x(), q.y(), q.z(), q.w());
 }
 
 controller_interface::InterfaceConfiguration
@@ -215,14 +233,6 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
 {
   auto node = get_node();
 
-  velocity_filter_alpha_ = 0.1; 
-  
-  // Initialize KDL solvers (Keep your existing solver initialization)
-  if (!kdl_chain_.getNrOfJoints()) {
-      RCLCPP_ERROR(get_node()->get_logger(), "KDL chain empty!");
-      return CallbackReturn::ERROR;
-  }
-
   // Load basic parameters
   joints_ = node->get_parameter("joints").as_string_array();
   root_link_ = node->get_parameter("root_link").as_string();
@@ -291,8 +301,28 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
     RCLCPP_INFO(node->get_logger(), "[PROFILE] Loaded stiffness profiles with %zu points",
       stiffness_profile_x_.size());
   } else {
-    RCLCPP_WARN(node->get_logger(),
-      "[PROFILE WARN] No stiffness profiles loaded. Using fixed homing stiffness.");
+    RCLCPP_INFO(node->get_logger(),
+      "[PROFILE] No stiffness profiles from parameters. Trying to load from CSV...");
+    
+    // Try multiple paths for the CSV file
+    std::vector<std::string> csv_paths = {
+      "config/stiffness_aniso.csv",
+      "/workspaces/omx_ros2/ws/src/omx_variable_stiffness_controller/config/stiffness_aniso.csv",
+      "../src/omx_variable_stiffness_controller/config/stiffness_aniso.csv"
+    };
+    
+    bool csv_loaded = false;
+    for (const auto & path : csv_paths) {
+      if (load_stiffness_damping_profiles_from_csv_(path)) {
+        csv_loaded = true;
+        break;
+      }
+    }
+    
+    if (!csv_loaded) {
+      RCLCPP_WARN(node->get_logger(),
+        "[PROFILE] Could not load CSV profiles from any path. Using fixed homing stiffness.");
+    }
   }
 
   // Build KDL chain from robot_description
@@ -347,8 +377,8 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
   q_min_.resize(n);
   q_max_.resize(n);
 
-  // Initialize target orientation
-  x_d_frame_.M = KDL::Rotation::RPY(
+  // Store target orientation (will be used later in homing)
+  target_orientation_ = KDL::Rotation::RPY(
     target_orientation_euler_.x(),
     target_orientation_euler_.y(),
     target_orientation_euler_.z());
@@ -365,44 +395,43 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
 
   // Create publishers
   actual_pose_pub_ = node->create_publisher<geometry_msgs::msg::Pose>(
-    "~/cartesian_pose_actual", 100);
+    "~/cartesian_pose_actual", rclcpp::QoS(100));
   desired_pose_pub_ = node->create_publisher<geometry_msgs::msg::Pose>(
-    "~/cartesian_pose_desired", 100);
+    "~/cartesian_pose_desired", rclcpp::QoS(100));
   stiffness_pub_ = node->create_publisher<std_msgs::msg::Float64MultiArray>(
-    "~/stiffness_state", 100);
+    "~/stiffness_state", rclcpp::QoS(100));
   torque_pub_ = node->create_publisher<std_msgs::msg::Float64MultiArray>(
-    "~/torque_values", 10);
+    "~/torque_values", rclcpp::QoS(10));
   jacobian_pub_ = node->create_publisher<std_msgs::msg::Float64MultiArray>(
-    "~/jacobian_values", 10);
+    "~/jacobian_values", rclcpp::QoS(10));
   ee_pos_pub_ = node->create_publisher<geometry_msgs::msg::Point>(
-    "~/end_effector_position", 10);
+    "~/end_effector_position", rclcpp::QoS(10));
   joint_vel_pub_ = node->create_publisher<std_msgs::msg::Float64MultiArray>(
-    "~/joint_velocities", 10);
+    "~/joint_velocities", rclcpp::QoS(10));
   ee_vel_pub_ = node->create_publisher<std_msgs::msg::Float64MultiArray>(
-    "~/end_effector_velocities", 10);
+    "~/end_effector_velocities", rclcpp::QoS(10));
   ee_orient_pub_ = node->create_publisher<geometry_msgs::msg::Vector3>(
-    "~/end_effector_orientation", 10);
+    "~/end_effector_orientation", rclcpp::QoS(10));
   manipulability_pub_ = node->create_publisher<std_msgs::msg::Float64MultiArray>(
-    "~/manipulability_metrics", 10);
+    "~/manipulability_metrics", rclcpp::QoS(10));
 
   // Create subscriber for runtime stiffness profile updates
   stiffness_profile_sub_ = node->create_subscription<std_msgs::msg::Float64MultiArray>(
     "~/stiffness_profile_update",
-    10,
+    rclcpp::QoS(10),
     std::bind(&OmxVariableStiffnessController::stiffness_profile_callback_, this,
       std::placeholders::_1));
 
   // Create subscriber for runtime waypoint commands
-  // Allows external nodes to send target poses as deviations or absolute targets
   waypoint_sub_ = node->create_subscription<geometry_msgs::msg::PoseStamped>(
     "~/waypoint_command",
-    10,
+    rclcpp::QoS(10),
     std::bind(&OmxVariableStiffnessController::waypoint_callback_, this,
       std::placeholders::_1));
 
   // Publisher for waypoint active status
   waypoint_active_pub_ = node->create_publisher<std_msgs::msg::Bool>(
-    "~/waypoint_active", 10);
+    "~/waypoint_active", rclcpp::QoS(10));
 
   RCLCPP_INFO(node->get_logger(),
     "[INIT] Configured: %zu joints, root='%s', tip='%s', torque_scale=%.3f",
@@ -412,12 +441,6 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
     vector_to_string(start_pos_).c_str(),
     vector_to_string(end_pos_).c_str(),
     homing_duration_, move_duration_);
-
-    std::vector<double> start_pos_vec;
-  if (get_node()->get_parameter("start_position", start_pos_vec) && start_pos_vec.size() == 3) {
-      x_d_frame_.p = KDL::Vector(start_pos_vec[0], start_pos_vec[1], start_pos_vec[2]);
-  }else { RCLCPP_ERROR(get_node()->get_logger(), "Failed to load 'start_position' parameter or it has incorrect size. Using default."); x_d_frame_.p = start_pos_; }
-
 
   // Validate and pre-compute joint-space trajectory if enabled
   if (use_joint_space_trajectory_) {
@@ -440,8 +463,7 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
       "Using raw Cartesian interpolation - may be unsafe!");
   }
 
-
-  RCLCPP_INFO(get_node()->get_logger(), "Configuration successful. Filter Alpha: %.2f", velocity_filter_alpha_);
+  RCLCPP_INFO(get_node()->get_logger(), "Configuration successful.");
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -538,75 +560,52 @@ bool OmxVariableStiffnessController::cache_interfaces_()
 }
 
 controller_interface::CallbackReturn
-// OmxVariableStiffnessController::on_activate(const rclcpp_lifecycle::State &)
-// {
-//   auto node = get_node();
-
-//   RCLCPP_INFO(node->get_logger(),
-//     "on_activate: %zu state interfaces, %zu command interfaces",
-//     state_interfaces_.size(), command_interfaces_.size());
-
-//   if (!cache_interfaces_()) {
-//     RCLCPP_ERROR(node->get_logger(),
-//       "Failed to cache required interfaces. Controller cannot run.");
-//     return controller_interface::CallbackReturn::ERROR;
-//   }
-
-//   // Read initial joint positions and compute starting Cartesian pose
-//   for (size_t i = 0; i < q_.rows(); ++i) {
-//     q_(i) = pos_if_[i]->get_value();
-//     q_dot_(i) = vel_if_[i] ? vel_if_[i]->get_value() : 0.0;
-//   }
-//   fk_solver_->JntToCart(q_, x_c_start_);
-
-//   // Set initial desired pose to current pose
-//   x_d_frame_ = x_c_start_;
-//   last_x_error_ = KDL::Twist::Zero();
-
-//   // Start state machine
-//   current_state_ = State::HOMING;
-//   move_start_time_ = node->get_clock()->now().seconds();
-
-//   // Zero command interfaces initially
-//   for (auto & ci : command_interfaces_) {
-//     (void)ci.set_value(0.0);
-//   }
-
-//   RCLCPP_INFO(node->get_logger(),
-//     "[STARTING] Initial EE pose: p=%s",
-//     vector_to_string(x_c_start_.p).c_str());
-
-//   return controller_interface::CallbackReturn::SUCCESS;
-// }
-
-CallbackReturn OmxVariableStiffnessController::on_activate(const rclcpp_lifecycle::State &)
+OmxVariableStiffnessController::on_activate(const rclcpp_lifecycle::State &)
 {
-  // 1. Clear buffers
-  std::fill(joint_positions_.begin(), joint_positions_.end(), 0.0);
-  std::fill(joint_velocities_.begin(), joint_velocities_.end(), 0.0);
-  
-  // 2. Read initial hardware state
-  for (size_t i = 0; i < joints_.size(); ++i) {
-    if (std::isnan(joint_state_interfaces_[i].get_value())) {
-      RCLCPP_ERROR(get_node()->get_logger(), "Joint %s has NaN value!", joints_[i].c_str());
-      return CallbackReturn::ERROR;
-    }
-    q_(i) = joint_state_interfaces_[i].get_value();
+  auto node = get_node();
+
+  RCLCPP_INFO(node->get_logger(),
+    "on_activate: %zu state interfaces, %zu command interfaces",
+    state_interfaces_.size(), command_interfaces_.size());
+
+  if (!cache_interfaces_()) {
+    RCLCPP_ERROR(node->get_logger(),
+      "Failed to cache required interfaces. Controller cannot run.");
+    return controller_interface::CallbackReturn::ERROR;
   }
 
-  // 3. [CRITICAL FIX] Sync Desired Pose to Actual Pose
-  fk_solver_->JntToCart(q_, x_c_frame); 
-  x_d_frame_ = x_c_frame;  // <--- The Magic Line. Target = Current.
-  
-  // 4. Reset Filters and History
-  x_dot_error_filtered_ = KDL::Twist::Zero();
-  last_x_error_ = KDL::Twist::Zero();
-  first_update_ = true;
+  // Read initial joint positions and velocities
+  const size_t n = joints_.size();
+  for (size_t i = 0; i < n; ++i) {
+    q_(i) = pos_if_[i]->get_value();
+    q_dot_(i) = vel_if_[i] ? vel_if_[i]->get_value() : 0.0;
+  }
 
-  RCLCPP_INFO(get_node()->get_logger(), "Activated. Holding current pose: [%f, %f, %f]", 
-    x_c_frame.p.x(), x_c_frame.p.y(), x_c_frame.p.z());
-    
-  return CallbackReturn::SUCCESS;
+  // Compute starting Cartesian pose
+  fk_solver_->JntToCart(q_, x_c_start_);
+  x_c_frame_ = x_c_start_;   // current pose
+
+  // Store start orientation for homing interpolation
+  start_orientation_ = x_c_start_.M;
+
+  // Set desired pose initially to current pose (will be interpolated during homing)
+  x_d_frame_ = x_c_start_;
+  last_x_error_ = KDL::Twist::Zero();
+
+  // Start state machine in HOMING
+  current_state_ = State::HOMING;
+  move_start_time_ = node->get_clock()->now().seconds();
+
+  // Zero command interfaces initially
+  for (auto & ci : command_interfaces_) {
+    (void)ci.set_value(0.0);
+  }
+
+  RCLCPP_INFO(node->get_logger(),
+    "[STARTING] Homing from current EE pose: p=%s, orientation will blend to target",
+    vector_to_string(x_c_start_.p).c_str());
+
+  return controller_interface::CallbackReturn::SUCCESS;
 }
 
 controller_interface::CallbackReturn
@@ -640,6 +639,92 @@ double OmxVariableStiffnessController::interpolate_profile_(
   return profile[i] * (1.0 - s_local) + profile[i_next] * s_local;
 }
 
+bool OmxVariableStiffnessController::load_stiffness_damping_profiles_from_csv_(
+  const std::string & csv_filename)
+{
+  auto node = get_node();
+  
+  std::ifstream file(csv_filename);
+  if (!file.is_open()) {
+    RCLCPP_WARN(node->get_logger(),
+      "[PROFILE CSV] Could not open file '%s'. Using fixed stiffness.",
+      csv_filename.c_str());
+    return false;
+  }
+
+  stiffness_profile_x_.clear();
+  stiffness_profile_y_.clear();
+  stiffness_profile_z_.clear();
+  damping_profile_x_.clear();
+  damping_profile_y_.clear();
+  damping_profile_z_.clear();
+
+  std::string line;
+  int line_count = 0;
+
+  while (std::getline(file, line)) {
+    if (line.empty()) continue;
+
+    // Parse CSV: Kx, Ky, Kz, Dx, Dy, Dz
+    std::stringstream ss(line);
+    std::string cell;
+    std::vector<double> values;
+
+    while (std::getline(ss, cell, ',')) {
+      try {
+        values.push_back(std::stod(cell));
+      } catch (const std::exception & e) {
+        RCLCPP_ERROR(node->get_logger(),
+          "[PROFILE CSV] Failed to parse value at line %d: %s",
+          line_count + 1, e.what());
+        file.close();
+        return false;
+      }
+    }
+
+    if (values.size() != 6) {
+      RCLCPP_ERROR(node->get_logger(),
+        "[PROFILE CSV] Expected 6 columns (Kx,Ky,Kz,Dx,Dy,Dz), got %zu at line %d",
+        values.size(), line_count + 1);
+      file.close();
+      return false;
+    }
+
+    stiffness_profile_x_.push_back(values[0]);
+    stiffness_profile_y_.push_back(values[1]);
+    stiffness_profile_z_.push_back(values[2]);
+    damping_profile_x_.push_back(values[3]);
+    damping_profile_y_.push_back(values[4]);
+    damping_profile_z_.push_back(values[5]);
+
+    line_count++;
+  }
+
+  file.close();
+
+  if (stiffness_profile_x_.empty()) {
+    RCLCPP_WARN(node->get_logger(),
+      "[PROFILE CSV] CSV file is empty or has no valid data.");
+    return false;
+  }
+
+  RCLCPP_INFO(node->get_logger(),
+    "[PROFILE CSV] Successfully loaded %zu profile points from '%s'",
+    stiffness_profile_x_.size(), csv_filename.c_str());
+  
+  RCLCPP_INFO(node->get_logger(),
+    "[PROFILE CSV] Sample: s=0.0: Kx=%.2f Ky=%.2f Kz=%.2f Dx=%.2f Dy=%.2f Dz=%.2f",
+    stiffness_profile_x_.front(), stiffness_profile_y_.front(), stiffness_profile_z_.front(),
+    damping_profile_x_.front(), damping_profile_y_.front(), damping_profile_z_.front());
+  
+  RCLCPP_INFO(node->get_logger(),
+    "[PROFILE CSV] Sample: s=1.0: Kx=%.2f Ky=%.2f Kz=%.2f Dx=%.2f Dy=%.2f Dz=%.2f",
+    stiffness_profile_x_.back(), stiffness_profile_y_.back(), stiffness_profile_z_.back(),
+    damping_profile_x_.back(), damping_profile_y_.back(), damping_profile_z_.back());
+
+  return true;
+}
+
 double OmxVariableStiffnessController::cos_interpolate_(double t, double T) const
 {
   double s = std::min(t / T, 1.0);
@@ -666,8 +751,7 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
   }
 
   // Compute Forward Kinematics (actual pose)
-  KDL::Frame x_c_frame;
-  fk_solver_->JntToCart(q_, x_c_frame);
+  fk_solver_->JntToCart(q_, x_c_frame_);
 
   // Compute Jacobian and Gravity torques
   jnt_to_jac_solver_->JntToJac(q_, jacobian_);
@@ -687,25 +771,36 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
   // 2. TRAJECTORY GENERATION & STATE MACHINE
   double s = 0.0;
   KDL::Vector x_d_new = x_d_frame_.p;
+  KDL::Rotation rot_desired = x_d_frame_.M;  // keep current if not changed
 
   switch (current_state_) {
     case State::INIT:
-      // Should not reach here; immediately transitions in on_activate
+      // Should not happen after activation
       break;
 
     case State::HOMING:
     {
       double t = time_s - move_start_time_;
       double alpha = cos_interpolate_(t, homing_duration_);
+
+      // --- Pure Cartesian Position Interpolation (NO IK) ---
       x_d_new = x_c_start_.p * (1.0 - alpha) + start_pos_ * alpha;
+
+      // --- Orientation: FIXED to target (no blending, no slerp) ---
+      // This is the key difference from the broken version!
+      // Let the impedance control handle orientation naturally
+      rot_desired = target_orientation_;
+
+      // Stiffness/damping during homing
       K_trans_current_ = stiffness_homing_;
       D_trans_current_ = Kd_lin_default_;
 
       if (t >= homing_duration_) {
         current_state_ = State::MOVE_FORWARD;
         move_start_time_ = time_s;
-        x_c_start_.p = x_d_new;
-        RCLCPP_INFO(node->get_logger(), "[STATE] Homing complete, starting MOVE_FORWARD");
+        x_c_start_.p = x_d_new;  // Update reference: homing endpoint becomes new start
+        RCLCPP_INFO(node->get_logger(), "[STATE] Homing complete at [%.3f, %.3f, %.3f], starting MOVE_FORWARD",
+          x_c_start_.p.x(), x_c_start_.p.y(), x_c_start_.p.z());
       }
       break;
     }
@@ -724,29 +819,31 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
 
       // Use validated joint-space trajectory if available
       if (use_joint_space_trajectory_ && !trajectory_joint_waypoints_.empty()) {
-        // Get interpolated joint position and compute FK for desired Cartesian pose
         KDL::JntArray q_desired(joints_.size());
         if (get_trajectory_joints_(s, q_desired)) {
           KDL::Frame x_desired_frame;
           fk_solver_->JntToCart(q_desired, x_desired_frame);
           x_d_new = x_desired_frame.p;
+          rot_desired = x_desired_frame.M;   // orientation from waypoints
         } else {
-          // Fallback to Cartesian interpolation
+          // Fallback to Cartesian interpolation (position only)
           double alpha = cos_interpolate_(t, move_duration_);
           if (current_state_ == State::MOVE_FORWARD) {
             x_d_new = start_pos_ * (1.0 - alpha) + end_pos_ * alpha;
           } else {
             x_d_new = end_pos_ * (1.0 - alpha) + start_pos_ * alpha;
           }
+          // Keep orientation constant (already at target after homing)
         }
       } else {
-        // Raw Cartesian interpolation (less safe)
+        // Raw Cartesian interpolation (position only)
         double alpha = cos_interpolate_(t, move_duration_);
         if (current_state_ == State::MOVE_FORWARD) {
           x_d_new = start_pos_ * (1.0 - alpha) + end_pos_ * alpha;
         } else {
           x_d_new = end_pos_ * (1.0 - alpha) + start_pos_ * alpha;
         }
+        // Orientation remains unchanged (already at target after homing)
       }
 
       // STIFFNESS MODULATION: Sample & Filter
@@ -822,18 +919,21 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
     }
   }
 
-  // Update desired position from trajectory
+  // Update desired pose
   x_d_frame_.p = x_d_new;
+  if (current_state_ == State::HOMING) {
+    // Orientation was updated in homing case
+    x_d_frame_.M = rot_desired;
+  } // else orientation is either unchanged or set by joint-space waypoints
 
   // WAYPOINT OVERRIDE: If waypoints are queued, blend towards them
-  // This allows external nodes to command deviations from the trajectory
   x_d_frame_.p = process_waypoints_(x_d_frame_.p, time_s);
 
   // Apply hardware safety limits before control law
   apply_safety_limits_();
 
   // 3. IMPEDANCE CONTROL LAW
-  KDL::Twist x_error = KDL::diff(x_c_frame, x_d_frame_);
+  KDL::Twist x_error = KDL::diff(x_c_frame_, x_d_frame_);
   KDL::Twist x_error_dot;
   if (dt > 1e-9) {
     x_error_dot.vel = (x_error.vel - last_x_error_.vel) / dt;
@@ -864,39 +964,33 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
   Eigen::Matrix<double, 6, 1> F_total = spring_force + damping_force;
 
   // Convert Cartesian Force to Joint Torques using Damped Least Squares (DLS)
-  // Standard: τ = J^T * F
-  // DLS: τ = J^T (JJ^T + λ²I)^{-1} JJ^T * F  (filters singular directions)
-  // This prevents torque amplification near singularities
   Eigen::MatrixXd J = jacobian_.data;
   Eigen::MatrixXd JJT = J * J.transpose();  // 6x6
-  
+
   // Adaptive damping: λ² increases as manipulability decreases
   double lambda_sq = 0.0;
   if (current_manipulability < min_manipulability_thresh_ * 5.0) {
-    // Damping factor grows as we approach singularity
     double proximity = 1.0 - (current_manipulability / (min_manipulability_thresh_ * 5.0));
     lambda_sq = dls_damping_factor_ * dls_damping_factor_ * proximity * proximity;
   }
-  
+
   // Regularized inverse: (JJ^T + λ²I)^{-1}
   Eigen::Matrix<double, 6, 6> JJT_damped = JJT + lambda_sq * Eigen::Matrix<double, 6, 6>::Identity();
   Eigen::Matrix<double, 6, 6> JJT_damped_inv = JJT_damped.inverse();
-  
+
   // DLS force projection: filters out singular components
   Eigen::Matrix<double, 6, 1> F_filtered = JJT_damped_inv * JJT * F_total;
-  
+
   // Joint torques via Jacobian transpose
   Eigen::VectorXd tau_impedance_vec = J.transpose() * F_filtered;
 
   // Final Control Torque: tau_total = tau_gravity + tau_impedance
-  // Gravity compensation is maintained even near singularities for safety
   KDL::JntArray tau_total(n);
   for (size_t i = 0; i < n; ++i) {
     tau_total(i) = (G_(i) + tau_impedance_vec(i)) * torque_scale_;
   }
 
-  // 4. PUBLISH DATA
-
+  // 4. PUBLISH DATA (as before, unchanged)
   // Joint Velocities
   std_msgs::msg::Float64MultiArray joint_vel_msg;
   for (size_t i = 0; i < n; ++i) {
@@ -906,14 +1000,14 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
 
   // End Effector Position
   geometry_msgs::msg::Point ee_pos_msg;
-  ee_pos_msg.x = x_c_frame.p.x();
-  ee_pos_msg.y = x_c_frame.p.y();
-  ee_pos_msg.z = x_c_frame.p.z();
+  ee_pos_msg.x = x_c_frame_.p.x();
+  ee_pos_msg.y = x_c_frame_.p.y();
+  ee_pos_msg.z = x_c_frame_.p.z();
   ee_pos_pub_->publish(ee_pos_msg);
 
   // End Effector Orientation (RPY)
   double roll, pitch, yaw;
-  x_c_frame.M.GetRPY(roll, pitch, yaw);
+  x_c_frame_.M.GetRPY(roll, pitch, yaw);
   geometry_msgs::msg::Vector3 ee_orient_msg;
   ee_orient_msg.x = roll;
   ee_orient_msg.y = pitch;
@@ -933,7 +1027,7 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
     jacobian_.data.data() + jacobian_.data.size());
   jacobian_pub_->publish(jacobian_msg);
 
-  // Manipulability metrics (JJ^T analysis)
+  // Manipulability metrics
   publish_manipulability_metrics_();
 
   // Torques
@@ -961,11 +1055,11 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
 
   // Actual and Desired Pose
   geometry_msgs::msg::Pose actual_pose_msg;
-  actual_pose_msg.position.x = x_c_frame.p.x();
-  actual_pose_msg.position.y = x_c_frame.p.y();
-  actual_pose_msg.position.z = x_c_frame.p.z();
+  actual_pose_msg.position.x = x_c_frame_.p.x();
+  actual_pose_msg.position.y = x_c_frame_.p.y();
+  actual_pose_msg.position.z = x_c_frame_.p.z();
   double x, y, z, w;
-  x_c_frame.M.GetQuaternion(x, y, z, w);
+  x_c_frame_.M.GetQuaternion(x, y, z, w);
   actual_pose_msg.orientation.x = x;
   actual_pose_msg.orientation.y = y;
   actual_pose_msg.orientation.z = z;
@@ -984,106 +1078,66 @@ OmxVariableStiffnessController::update(const rclcpp::Time & time, const rclcpp::
   desired_pose_pub_->publish(desired_pose_msg);
 
   // 5. COMMAND TORQUES TO HARDWARE
-  // for (size_t i = 0; i < n; ++i) {
-  //   (void)eff_cmd_if_[i]->set_value(tau_total(i));
-  // }
-  for (size_t i = 0; i < joints_.size(); ++i) {
-     // Add Gravity Compensation (if not already handled by hardware/firmware)
-     // tau_cmd_interfaces_[i].set_value(tau_eigen(i) + G_(i)); 
-     
-     // Note: If using OpenManipulator-X, ensure 'torque_scale' is applied 
-     // if the hardware interface expects raw currents instead of Nm.
-double scaled_torque = tau_eigen(i) * torque_scale_; tau_cmd_interfaces_[i].set_value(scaled_torque); } 
-return controller_interface::return_type::OK; 
-} 
+  for (size_t i = 0; i < n; ++i) {
+    if (eff_cmd_if_[i]) {
+      eff_cmd_if_[i]->set_value(tau_total(i));
+    }
+  }
+
+  return controller_interface::return_type::OK;
+}
 
 void OmxVariableStiffnessController::apply_safety_limits_()
 {
-  // Clamp translational stiffness to hardware limits
+  // Clamp translational stiffness and damping to hardware limits
   K_trans_current_.x(std::clamp(K_trans_current_.x(), 0.0, MAX_CARTESIAN_STIFFNESS));
   K_trans_current_.y(std::clamp(K_trans_current_.y(), 0.0, MAX_CARTESIAN_STIFFNESS));
   K_trans_current_.z(std::clamp(K_trans_current_.z(), 0.0, MAX_CARTESIAN_STIFFNESS));
 
-  // Clamp translational damping to hardware limits
   D_trans_current_.x(std::clamp(D_trans_current_.x(), 0.0, MAX_CARTESIAN_DAMPING));
   D_trans_current_.y(std::clamp(D_trans_current_.y(), 0.0, MAX_CARTESIAN_DAMPING));
   D_trans_current_.z(std::clamp(D_trans_current_.z(), 0.0, MAX_CARTESIAN_DAMPING));
 
-  // Clamp rotational stiffness to hardware limits
-  K_rot_.x(std::clamp(K_rot_.x(), 0.0, MAX_ROTATIONAL_STIFFNESS));
-  K_rot_.y(std::clamp(K_rot_.y(), 0.0, MAX_ROTATIONAL_STIFFNESS));
-  K_rot_.z(std::clamp(K_rot_.z(), 0.0, MAX_ROTATIONAL_STIFFNESS));
-
-  // Clamp rotational damping to hardware limits
-  Kd_ang_.x(std::clamp(Kd_ang_.x(), 0.0, MAX_ROTATIONAL_DAMPING));
-  Kd_ang_.y(std::clamp(Kd_ang_.y(), 0.0, MAX_ROTATIONAL_DAMPING));
-  Kd_ang_.z(std::clamp(Kd_ang_.z(), 0.0, MAX_ROTATIONAL_DAMPING));
+  // Rotational values are constant parameters, assumed safe; no runtime clamping needed.
 }
 
 void OmxVariableStiffnessController::publish_manipulability_metrics_()
 {
-  // Compute JJ^T (6x6 matrix) for manipulability analysis
-  // This gives insight into stiffness transformation and singularity proximity
-  Eigen::MatrixXd J = jacobian_.data;                    // 6xN Jacobian
-  Eigen::MatrixXd JJT = J * J.transpose();               // 6x6 JJ^T
+  Eigen::MatrixXd J = Eigen::MatrixXd(jacobian_.data);
+  Eigen::MatrixXd JJT = J * J.transpose();
 
-  // Compute eigenvalues of JJ^T using SelfAdjointEigenSolver (JJ^T is symmetric positive semi-definite)
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigensolver(JJT);
-  Eigen::VectorXd eigenvalues = eigensolver.eigenvalues();      // Sorted ascending
+  Eigen::VectorXd eigenvalues = eigensolver.eigenvalues();
 
-  // Compute determinant (product of eigenvalues, squared Yoshikawa manipulability)
   double det = JJT.determinant();
-
-  // Compute condition number = sqrt(lambda_max / lambda_min)
-  // High condition number indicates proximity to singularity
   double lambda_min = eigenvalues(0);
   double lambda_max = eigenvalues(eigenvalues.size() - 1);
-  double condition_number = 0.0;
-  if (lambda_min > 1e-10) {
-    condition_number = std::sqrt(lambda_max / lambda_min);
-  } else {
-    condition_number = std::numeric_limits<double>::infinity();
-  }
-
-  // Yoshikawa manipulability measure: w = sqrt(det(JJ^T))
+  double condition_number = (lambda_min > 1e-10) ? std::sqrt(lambda_max / lambda_min) : std::numeric_limits<double>::infinity();
   double yoshikawa_manipulability = std::sqrt(std::max(det, 0.0));
-
-  // Minimum singular value (sqrt of min eigenvalue) - indicates distance to singularity
   double min_singular_value = std::sqrt(std::max(lambda_min, 0.0));
   double max_singular_value = std::sqrt(std::max(lambda_max, 0.0));
 
-  // Publish manipulability metrics
-  // Format: [condition_number, determinant, yoshikawa, min_sv, max_sv, eigenvalue_0, ..., eigenvalue_5]
   std_msgs::msg::Float64MultiArray msg;
   msg.data.push_back(condition_number);
   msg.data.push_back(det);
   msg.data.push_back(yoshikawa_manipulability);
   msg.data.push_back(min_singular_value);
   msg.data.push_back(max_singular_value);
-
-  // Add all eigenvalues (6 values for 6x6 JJ^T)
   for (int i = 0; i < eigenvalues.size(); ++i) {
     msg.data.push_back(eigenvalues(i));
   }
-
   manipulability_pub_->publish(msg);
 }
 
 void OmxVariableStiffnessController::waypoint_callback_(
   const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
-  // Create waypoint command from message
   WaypointCommand wp;
   wp.position = KDL::Vector(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
   wp.timestamp = get_node()->now().seconds();
-
-  // Check frame_id for offset mode
-  // "offset" or "relative" = offset from current trajectory target
-  // "absolute", "world", or empty = absolute position
   std::string frame = msg->header.frame_id;
   wp.is_offset = (frame == "offset" || frame == "relative");
 
-  // Add to queue (thread-safe)
   {
     std::lock_guard<std::mutex> lock(waypoint_mutex_);
     waypoint_queue_.push(wp);
@@ -1099,20 +1153,14 @@ void OmxVariableStiffnessController::waypoint_callback_(
 KDL::Vector OmxVariableStiffnessController::process_waypoints_(
   const KDL::Vector & trajectory_target, double current_time)
 {
-  // Check for new waypoints in queue
+  // Activate next waypoint if none active and queue not empty
   {
     std::lock_guard<std::mutex> lock(waypoint_mutex_);
-
-    // If current waypoint is done and queue has more, get next
     if (!has_active_waypoint_ && !waypoint_queue_.empty()) {
       current_waypoint_ = waypoint_queue_.front();
       waypoint_queue_.pop();
       has_active_waypoint_ = true;
-      waypoint_mode_active_ = true;
       waypoint_start_time_ = current_time;
-
-      // Capture current position for smooth blending
-      // Use trajectory target as starting point for the blend
       if (current_waypoint_.is_offset) {
         current_waypoint_.position = trajectory_target + current_waypoint_.position;
       }
@@ -1126,22 +1174,18 @@ KDL::Vector OmxVariableStiffnessController::process_waypoints_(
     }
   }
 
-  // Publish waypoint active status
+  // Publish active status
   std_msgs::msg::Bool status_msg;
   status_msg.data = has_active_waypoint_;
   waypoint_active_pub_->publish(status_msg);
 
-  // If no active waypoint, return trajectory target unchanged
   if (!has_active_waypoint_) {
-    waypoint_mode_active_ = false;
     return trajectory_target;
   }
 
   // Blend from waypoint_blend_start_ to current_waypoint_.position
   double elapsed = current_time - waypoint_start_time_;
   double blend_progress = std::min(elapsed / waypoint_blend_duration_, 1.0);
-
-  // Smooth cosine interpolation for blending
   double smooth_progress = 0.5 * (1.0 - std::cos(M_PI * blend_progress));
 
   KDL::Vector blended_target;
@@ -1152,26 +1196,22 @@ KDL::Vector OmxVariableStiffnessController::process_waypoints_(
   blended_target.z(waypoint_blend_start_.z() +
     smooth_progress * (current_waypoint_.position.z() - waypoint_blend_start_.z()));
 
-  // Check if waypoint reached (blend complete)
   if (blend_progress >= 1.0) {
-    // Check if more waypoints in queue
     std::lock_guard<std::mutex> lock(waypoint_mutex_);
     if (waypoint_queue_.empty()) {
-      // Waypoint completed, no more in queue
-      // Stay at waypoint position until new command or clear
+      // No more waypoints – hold current position
+      has_active_waypoint_ = false;   // allow new waypoints later
       RCLCPP_INFO(get_node()->get_logger(),
-        "[WAYPOINT] Reached waypoint, holding position");
+        "[WAYPOINT] Reached final waypoint, holding position");
     } else {
-      // Grab next waypoint
+      // Move to next waypoint
       current_waypoint_ = waypoint_queue_.front();
       waypoint_queue_.pop();
       waypoint_start_time_ = current_time;
       waypoint_blend_start_ = blended_target;
-
       if (current_waypoint_.is_offset) {
         current_waypoint_.position = blended_target + current_waypoint_.position;
       }
-
       RCLCPP_INFO(get_node()->get_logger(),
         "[WAYPOINT] Next waypoint -> [%.3f, %.3f, %.3f], remaining: %zu",
         current_waypoint_.position.x(),
@@ -1187,21 +1227,15 @@ KDL::Vector OmxVariableStiffnessController::process_waypoints_(
 void OmxVariableStiffnessController::clear_waypoints_()
 {
   std::lock_guard<std::mutex> lock(waypoint_mutex_);
-
-  // Clear queue
   while (!waypoint_queue_.empty()) {
     waypoint_queue_.pop();
   }
-
   has_active_waypoint_ = false;
-  waypoint_mode_active_ = false;
-
-  RCLCPP_INFO(get_node()->get_logger(), "[WAYPOINT] Cleared all waypoints, returning to trajectory");
+  RCLCPP_INFO(get_node()->get_logger(), "[WAYPOINT] Cleared all waypoints");
 }
 
 bool OmxVariableStiffnessController::load_joint_limits_(const std::string & urdf_xml)
 {
-  // Parse URDF to extract joint limits
   urdf::Model urdf_model;
   if (!urdf_model.initString(urdf_xml)) {
     RCLCPP_WARN(get_node()->get_logger(), "Failed to parse URDF for joint limits");
@@ -1230,7 +1264,6 @@ bool OmxVariableStiffnessController::load_joint_limits_(const std::string & urdf
           "[LIMITS] Joint '%s': [%.3f, %.3f]",
           joints_[i].c_str(), q_min_(i), q_max_(i));
       } else {
-        // No limits specified - use large defaults
         q_min_(i) = -M_PI;
         q_max_(i) = M_PI;
       }
@@ -1251,9 +1284,8 @@ bool OmxVariableStiffnessController::load_joint_limits_(const std::string & urdf
 bool OmxVariableStiffnessController::is_within_joint_limits_(const KDL::JntArray & q) const
 {
   if (!has_joint_limits_) {
-    return true;  // No limits to check
+    return true;
   }
-
   for (size_t i = 0; i < q.rows(); ++i) {
     if (q(i) < q_min_(i) || q(i) > q_max_(i)) {
       return false;
@@ -1264,12 +1296,8 @@ bool OmxVariableStiffnessController::is_within_joint_limits_(const KDL::JntArray
 
 double OmxVariableStiffnessController::compute_manipulability_() const
 {
-  // Compute manipulability using minimum singular value (robust singularity measure)
-  // sigma_min → 0 indicates proximity to singularity
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(jacobian_.data);
   Eigen::VectorXd sv = svd.singularValues();
-  
-  // Return minimum singular value
   return sv(sv.size() - 1);
 }
 
@@ -1281,15 +1309,13 @@ bool OmxVariableStiffnessController::validate_and_compute_trajectory_()
   trajectory_joint_waypoints_.clear();
   trajectory_joint_waypoints_.reserve(num_trajectory_samples_);
 
-  // Initial guess for IK - use a non-singular "elbow-bent" configuration
-  // For OpenManipulator-X: joint2 down, joint3 bent up, joint4 compensating
-  KDL::JntArray q_init(n);
-  q_init(0) = 0.0;       // joint1: base rotation
-  q_init(1) = -0.5;      // joint2: shoulder down
-  q_init(2) = 1.0;       // joint3: elbow bent
-  q_init(3) = 0.5;       // joint4: wrist compensating
+KDL::JntArray q_init(n);
+for (size_t i = 0; i < n; ++i) q_init(i) = q_(i);  // use current joint state as seed
+// optionally override first joints with desired starting pose if needed
+if (n >= 4 && (std::abs(q_init(0)) < 1e-3 || std::abs(q_init(1) + 0.5) < 1e-3)) {
+  q_init(0) = 0.0; q_init(1) = -0.5; q_init(2) = 1.0; q_init(3) = 0.5;
+}
 
-  // Build target orientation from euler angles
   KDL::Rotation target_rot = KDL::Rotation::RPY(
     target_orientation_euler_.x(),
     target_orientation_euler_.y(),
@@ -1299,12 +1325,9 @@ bool OmxVariableStiffnessController::validate_and_compute_trajectory_()
 
   for (size_t sample = 0; sample <= num_trajectory_samples_; ++sample) {
     double s = static_cast<double>(sample) / static_cast<double>(num_trajectory_samples_);
-
-    // Interpolate Cartesian position along trajectory
     KDL::Vector pos = start_pos_ * (1.0 - s) + end_pos_ * s;
     KDL::Frame target_frame(target_rot, pos);
 
-    // Solve IK
     KDL::JntArray q_result(n);
     int ik_ret = ik_solver_->CartToJnt(q_init, target_frame, q_result);
 
@@ -1315,31 +1338,23 @@ bool OmxVariableStiffnessController::validate_and_compute_trajectory_()
       return false;
     }
 
-    // Check joint limits
     if (!is_within_joint_limits_(q_result)) {
       RCLCPP_ERROR(node->get_logger(),
         "[SAFETY ERROR] IK solution violates joint limits at s=%.2f", s);
       return false;
     }
 
-    // Compute manipulability using minimum singular value (robust singularity measure)
-    // For 4-DOF arm in 6D task space, σ_min indicates proximity to singularity
     KDL::Jacobian jac(n);
     jnt_to_jac_solver_->JntToJac(q_result, jac);
-    
-    // SVD of J (6xn) - use JacobiSVD for small matrices
     Eigen::JacobiSVD<Eigen::MatrixXd> svd(jac.data, Eigen::ComputeThinU | Eigen::ComputeThinV);
     Eigen::VectorXd sv = svd.singularValues();
-    
-    // Use minimum singular value as singularity measure (more robust than product)
-    double sigma_min = sv(sv.size() - 1);  // SVD returns in descending order
+    double sigma_min = sv(sv.size() - 1);
     double manip = sigma_min;
 
     if (sample == 0) {
       RCLCPP_INFO(node->get_logger(),
-        "[SAFETY] First waypoint IK: q=[%.3f, %.3f, %.3f, %.3f], sigma_min=%.6f, sv=[%.4f, %.4f, %.4f, %.4f]",
-        q_result(0), q_result(1), q_result(2), q_result(3), sigma_min,
-        sv(0), sv(1), sv(2), sv.size() > 3 ? sv(3) : 0.0);
+        "[SAFETY] First waypoint IK: q=[%.3f, %.3f, %.3f, %.3f], sigma_min=%.6f",
+        q_result(0), q_result(1), q_result(2), q_result(3), sigma_min);
     }
 
     if (manip < min_manip) {
@@ -1354,15 +1369,12 @@ bool OmxVariableStiffnessController::validate_and_compute_trajectory_()
     }
 
     trajectory_joint_waypoints_.push_back(q_result);
-
-    // Use this solution as seed for next point
     q_init = q_result;
   }
 
   RCLCPP_INFO(node->get_logger(),
     "[SAFETY] Trajectory validation passed. Min manipulability=%.4f (threshold=%.4f)",
     min_manip, min_manipulability_thresh_);
-
   return true;
 }
 
@@ -1372,16 +1384,12 @@ bool OmxVariableStiffnessController::get_trajectory_joints_(double s, KDL::JntAr
     return false;
   }
 
-  // Clamp s to [0, 1]
   s = std::clamp(s, 0.0, 1.0);
-
-  // Find the two waypoints to interpolate between
   double idx_f = s * static_cast<double>(trajectory_joint_waypoints_.size() - 1);
   size_t idx_lo = static_cast<size_t>(std::floor(idx_f));
   size_t idx_hi = std::min(idx_lo + 1, trajectory_joint_waypoints_.size() - 1);
   double t = idx_f - static_cast<double>(idx_lo);
 
-  // Linear interpolation in joint space
   const KDL::JntArray & q_lo = trajectory_joint_waypoints_[idx_lo];
   const KDL::JntArray & q_hi = trajectory_joint_waypoints_[idx_hi];
 
@@ -1389,7 +1397,6 @@ bool OmxVariableStiffnessController::get_trajectory_joints_(double s, KDL::JntAr
   for (size_t i = 0; i < q_out.rows(); ++i) {
     q_out(i) = q_lo(i) * (1.0 - t) + q_hi(i) * t;
   }
-
   return true;
 }
 

@@ -1,0 +1,61 @@
+[0.015s] Invoking command in '/workspaces/omx_ros2/build/omx_variable_stiffness_controller': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /workspaces/omx_ros2/ws/src/omx_variable_stiffness_controller -DCMAKE_INSTALL_PREFIX=/workspaces/omx_ros2/install/omx_variable_stiffness_controller
+[0.061s] -- The C compiler identification is GNU 11.4.0
+[0.105s] -- The CXX compiler identification is GNU 11.4.0
+[0.112s] -- Detecting C compiler ABI info
+[0.170s] -- Detecting C compiler ABI info - done
+[0.175s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.175s] -- Detecting C compile features
+[0.175s] -- Detecting C compile features - done
+[0.178s] -- Detecting CXX compiler ABI info
+[0.241s] -- Detecting CXX compiler ABI info - done
+[0.246s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.246s] -- Detecting CXX compile features
+[0.247s] -- Detecting CXX compile features - done
+[0.251s] -- Found ament_cmake: 1.3.12 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.360s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[0.433s] -- Found rclcpp: 16.0.17 (/opt/ros/humble/share/rclcpp/cmake)
+[0.468s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[0.472s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[0.479s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[0.489s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[0.502s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[0.538s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[0.541s] -- Found rmw_fastrtps_cpp: 6.2.9 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[0.610s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[0.630s] -- Found FastRTPS: /opt/ros/humble/include  
+[0.660s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[0.666s] -- Looking for pthread.h
+[0.738s] -- Looking for pthread.h - found
+[0.738s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[0.817s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[0.819s] -- Found Threads: TRUE  
+[0.885s] -- Found rclcpp_lifecycle: 16.0.17 (/opt/ros/humble/share/rclcpp_lifecycle/cmake)
+[0.902s] -- Found controller_interface: 2.53.0 (/opt/ros/humble/share/controller_interface/cmake)
+[1.010s] -- Found kdl_parser: 2.6.4 (/opt/ros/humble/share/kdl_parser/cmake)
+[1.025s] -- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)
+[1.025s] -- Found Eigen3: TRUE (found version "3.4.0") 
+[1.025s] -- Ensuring Eigen3 include directory is part of orocos-kdl CMake target
+[1.029s] -- Found urdf: 2.6.1 (/opt/ros/humble/share/urdf/cmake)
+[1.037s] -- Found tf2_kdl: 0.25.18 (/opt/ros/humble/share/tf2_kdl/cmake)
+[1.085s] -- Found tf2_eigen: 0.25.18 (/opt/ros/humble/share/tf2_eigen/cmake)
+[1.088s] -- Found ament_cmake_pytest: 1.3.12 (/opt/ros/humble/share/ament_cmake_pytest/cmake)
+[1.097s] [31mCMake Error at CMakeLists.txt:25 (find_package):
+[1.097s]   By not providing "Findlaunch_testing.cmake" in CMAKE_MODULE_PATH this
+[1.097s]   project has asked CMake to find a package configuration file provided by
+[1.098s]   "launch_testing", but CMake did not find one.
+[1.098s] 
+[1.098s]   Could not find a package configuration file provided by "launch_testing"
+[1.098s]   with any of the following names:
+[1.098s] 
+[1.098s]     launch_testingConfig.cmake
+[1.098s]     launch_testing-config.cmake
+[1.098s] 
+[1.098s]   Add the installation prefix of "launch_testing" to CMAKE_PREFIX_PATH or set
+[1.098s]   "launch_testing_DIR" to a directory containing one of the above files.  If
+[1.098s]   "launch_testing" provides a separate development package or SDK, be sure it
+[1.098s]   has been installed.
+[1.098s] 
+[1.098s] [0m
+[1.098s] -- Configuring incomplete, errors occurred!
+[1.098s] See also "/workspaces/omx_ros2/build/omx_variable_stiffness_controller/CMakeFiles/CMakeOutput.log".
+[1.105s] Invoked command in '/workspaces/omx_ros2/build/omx_variable_stiffness_controller' returned '1': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /workspaces/omx_ros2/ws/src/omx_variable_stiffness_controller -DCMAKE_INSTALL_PREFIX=/workspaces/omx_ros2/install/omx_variable_stiffness_controller

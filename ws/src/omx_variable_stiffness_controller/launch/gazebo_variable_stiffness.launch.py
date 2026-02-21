@@ -221,14 +221,31 @@ def generate_launch_description():
         actions=[logger_node],
     )
 
+    # RViz config file
+    rviz_config = PathJoinSubstitution([
+        FindPackageShare('omx_variable_stiffness_controller'),
+        'rviz', 'variable_stiffness.rviz'
+    ])
+
     # RViz node (optional)
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
+        arguments=['-d', rviz_config],
         parameters=[{'use_sim_time': True}],
         output='screen',
         condition=IfCondition(start_rviz)
+    )
+
+    # Static transform broadcaster: world -> base_link (if needed)
+    # This ensures world frame is available in TF tree
+    world_base_broadcaster = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0', '0', '0', '0', '0', '0', 'world', 
+                   PathJoinSubstitution([robot_namespace, 'base_link'])],
+        output='screen',
     )
 
     # Force software rendering for headless containers
@@ -239,6 +256,7 @@ def generate_launch_description():
         set_libgl_sw,
         gazebo_server,
         gazebo_client,
+        world_base_broadcaster,
         robot_state_publisher,
         delayed_spawn,
         delay_controllers,

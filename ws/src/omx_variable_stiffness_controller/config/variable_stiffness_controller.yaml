@@ -1,6 +1,4 @@
 # Variable Stiffness Controller Configuration for OpenManipulator-X
-# Single robot hardware configuration
-
 /omx/controller_manager:
   ros__parameters:
     update_rate: 500
@@ -14,63 +12,112 @@
 
 /omx/variable_stiffness_controller:
   ros__parameters:
-    # Joint configuration
     joints:
       - joint1
       - joint2
       - joint3
       - joint4
     root_link: world
-    tip_link: link5
-
-    # Robot description source - adjust based on your setup
+    tip_link: end_effector_link
     robot_description_node: /omx/robot_state_publisher
-
-    # Torque scaling (KDL outputs Nm; Dynamixel uses raw units)
-    # XM430-W350 torque constant ≈ 1.4 Nm/A → scale = 1/(1.4*0.00269) ≈ 267
-    # Start conservative, tune up/down based on behavior
     torque_scale: 200.0
 
-    # Trajectory timing parameters
-    homing_duration: 5.0          # Time to move from current pose to start_position
-    move_duration: 10.0           # Time for forward/return motion
-    wait_duration: 2.0            # Pause duration at endpoints
+    homing_duration: 5.0
+    move_duration: 10.0
+    wait_duration: 2.0
+    max_rise_rate: 50.0
 
-    # Stiffness rate limiting (safety)
-    max_rise_rate: 100.0          # Max stiffness change per second (N/m/s)
+    use_joint_space_trajectory: true
+    num_trajectory_samples: 50
+    min_manipulability_threshold: 0.02
+    dls_damping_factor: 0.1
 
-    # Trajectory safety parameters
-    use_joint_space_trajectory: true   # Enable safe joint-space IK-validated trajectory
-    num_trajectory_samples: 50         # Number of IK samples for validation
-    min_manipulability_threshold: 0.02 # Minimum singular value before DLS activates (increased for safety)
-    dls_damping_factor: 0.1            # λ for Damped Least Squares near singularities
+    start_position: [0.05, 0.10, 0.25]
+    end_position: [0.30, 0.30, 0.25]
+    target_orientation: [0.0, 0.0, 0.0]
 
-    # Cartesian waypoints [x, y, z] in meters (must be reachable by IK)
-    # Positions chosen to avoid singularities (elbow bent, not fully extended)
-    start_position: [0.05, 0.0, 0.15]
-    end_position: [0.25, 0.0, 0.15]
+    stiffness_homing: [20.0, 20.0, 20.0]
+    stiffness_rot: [5.0, 5.0, 5.0]
+    damping_rot: [1.0, 1.0, 1.0]
+    damping_default: [3.0, 3.0, 3.0]
 
-    # Target orientation [roll, pitch, yaw] in radians
-    # Gripper pointing forward and down (negative pitch for stability)
-    target_orientation: [0.0, 0.3, 0.0]
+# # Variable Stiffness Controller Configuration for OpenManipulator-X
+# # Single robot hardware configuration
 
-    # Stiffness parameters (N/m for translation, Nm/rad for rotation)
-    # HARDWARE LIMITS: Max translational stiffness = 65 N/m, Max damping = 3 Ns/m
-    stiffness_homing: [50.0, 50.0, 50.0]    # Stiffness during homing/waiting
-    stiffness_rot: [15.0, 15.0, 15.0]       # Rotational stiffness (max 20 Nm/rad)
+# /omx/controller_manager:
+#   ros__parameters:
+#     update_rate: 500
+#     use_sim_time: false
 
-    # Damping parameters (Ns/m for translation, Nms/rad for rotation)
-    # HARDWARE LIMITS: Max translational damping = 3 Ns/m, Max rotational damping = 1 Nms/rad
-    damping_rot: [0.8, 0.8, 0.8]            # Rotational damping
-    damping_default: [2.5, 2.5, 2.5]        # Default linear damping
+#     joint_state_broadcaster:
+#       type: joint_state_broadcaster/JointStateBroadcaster
 
-    # Stiffness/damping profiles (optional - loaded from CSV by load_stiffness.py)
-    # Can be filled dynamically at runtime via parameter updates or topics
-    # Each profile should have the same length - values are interpolated along trajectory
-    # Note: Leave these commented out to use defaults; the load_stiffness.py node will set them if needed
-    # stiffness_profile_x: [50.0]
-    # stiffness_profile_y: [50.0]
-    # stiffness_profile_z: [50.0]
-    # damping_profile_x: [2.5]
-    # damping_profile_y: [2.5]
-    # damping_profile_z: [2.5]
+#     variable_stiffness_controller:
+#       type: omx_variable_stiffness_controller/OmxVariableStiffnessController
+
+# /omx/variable_stiffness_controller:
+#   ros__parameters:
+#     # Joint configuration
+#     joints:
+#       - joint1
+#       - joint2
+#       - joint3
+#       - joint4
+#     root_link: world
+#     tip_link: link5
+
+#     # Robot description source - adjust based on your setup
+#     # Per-robot YAMLs (robot1_*.yaml / robot2_*.yaml) should set this to
+#     # '/<robot_namespace>/robot_state_publisher' or '/<robot_namespace>/controller_manager'
+#     # Prefer the controller_manager namespaced parameter to avoid race conditions.
+#     # The per-robot YAMLs override these defaults; default namespace here is 'omx'.
+#     robot_description_node: /omx/controller_manager
+
+#     # Torque scaling (KDL outputs Nm; Dynamixel uses raw units)
+#     # XM430-W350 torque constant ≈ 1.4 Nm/A → scale = 1/(1.4*0.00269) ≈ 267
+#     # Start conservative, tune up/down based on behavior
+#     torque_scale: 200.0
+
+#     # Trajectory timing parameters
+#     homing_duration: 5.0          # Time to move from current pose to start_position
+#     move_duration: 10.0           # Time for forward/return motion
+#     wait_duration: 2.0            # Pause duration at endpoints
+
+#     # Stiffness rate limiting (safety)
+#     max_rise_rate: 100.0          # Max stiffness change per second (N/m/s)
+
+#     # Trajectory safety parameters
+#     use_joint_space_trajectory: true   # Enable safe joint-space IK-validated trajectory
+#     num_trajectory_samples: 50         # Number of IK samples for validation
+#     min_manipulability_threshold: 0.02 # Minimum singular value before DLS activates (increased for safety)
+#     dls_damping_factor: 0.1            # λ for Damped Least Squares near singularities
+
+#     # Cartesian waypoints [x, y, z] in meters (must be reachable by IK)
+#     # Positions chosen to avoid singularities (elbow bent, not fully extended)
+#     start_position: [0.05, 0.0, 0.15]
+#     end_position: [0.25, 0.0, 0.15]
+
+#     # Target orientation [roll, pitch, yaw] in radians
+#     # Gripper pointing forward and down (negative pitch for stability)
+#     target_orientation: [0.0, 0.3, 0.0]
+
+#     # Stiffness parameters (N/m for translation, Nm/rad for rotation)
+#     # HARDWARE LIMITS: Max translational stiffness = 65 N/m, Max damping = 3 Ns/m
+#     stiffness_homing: [50.0, 50.0, 50.0]    # Stiffness during homing/waiting
+#     stiffness_rot: [15.0, 15.0, 15.0]       # Rotational stiffness (max 20 Nm/rad)
+
+#     # Damping parameters (Ns/m for translation, Nms/rad for rotation)
+#     # HARDWARE LIMITS: Max translational damping = 3 Ns/m, Max rotational damping = 1 Nms/rad
+#     damping_rot: [0.8, 0.8, 0.8]            # Rotational damping
+#     damping_default: [2.5, 2.5, 2.5]        # Default linear damping
+
+#     # Stiffness/damping profiles (optional - loaded from CSV by load_stiffness.py)
+#     # Can be filled dynamically at runtime via parameter updates or topics
+#     # Each profile should have the same length - values are interpolated along trajectory
+#     # Note: Leave these commented out to use defaults; the load_stiffness.py node will set them if needed
+#     # stiffness_profile_x: [50.0]
+#     # stiffness_profile_y: [50.0]
+#     # stiffness_profile_z: [50.0]
+#     # damping_profile_x: [2.5]
+#     # damping_profile_y: [2.5]
+#     # damping_profile_z: [2.5]

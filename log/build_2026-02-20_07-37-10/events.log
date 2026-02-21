@@ -1,0 +1,352 @@
+[0.000000] (-) TimerEvent: {}
+[0.000118] (-) JobUnselected: {'identifier': 'dynamixel_hardware_interface'}
+[0.000347] (-) JobUnselected: {'identifier': 'dynamixel_sdk'}
+[0.000376] (-) JobUnselected: {'identifier': 'dynamixel_sdk_custom_interfaces'}
+[0.000385] (-) JobUnselected: {'identifier': 'dynamixel_sdk_examples'}
+[0.000419] (-) JobUnselected: {'identifier': 'omx_dual_bringup'}
+[0.000428] (-) JobUnselected: {'identifier': 'omx_gravity_comp_controller'}
+[0.000435] (-) JobUnselected: {'identifier': 'open_manipulator'}
+[0.000442] (-) JobUnselected: {'identifier': 'open_manipulator_x_bringup'}
+[0.000567] (-) JobUnselected: {'identifier': 'open_manipulator_x_description'}
+[0.000707] (-) JobUnselected: {'identifier': 'open_manipulator_x_gui'}
+[0.000761] (-) JobUnselected: {'identifier': 'open_manipulator_x_moveit_config'}
+[0.000783] (-) JobUnselected: {'identifier': 'open_manipulator_x_playground'}
+[0.000813] (-) JobUnselected: {'identifier': 'open_manipulator_x_teleop'}
+[0.000840] (omx_variable_stiffness_controller) JobQueued: {'identifier': 'omx_variable_stiffness_controller', 'dependencies': OrderedDict()}
+[0.000852] (omx_variable_stiffness_controller) JobStarted: {'identifier': 'omx_variable_stiffness_controller'}
+[0.010093] (omx_variable_stiffness_controller) JobProgress: {'identifier': 'omx_variable_stiffness_controller', 'progress': 'cmake'}
+[0.010692] (omx_variable_stiffness_controller) Command: {'cmd': ['/usr/bin/cmake', '/workspaces/omx_ros2/ws/src/omx_variable_stiffness_controller', '-DBUILD_TESTING=OFF', '-DAMENT_CMAKE_SYMLINK_INSTALL=1', '-DCMAKE_INSTALL_PREFIX=/workspaces/omx_ros2/install/omx_variable_stiffness_controller'], 'cwd': '/workspaces/omx_ros2/build/omx_variable_stiffness_controller', 'env': OrderedDict([('PYTHON_BASIC_REPL', '1'), ('HOSTNAME', '803b6a3ac0d5'), ('GIT_ASKPASS', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/extensions/git/dist/askpass.sh'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('BROWSER', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/bin/helpers/browser.sh'), ('HOME', '/root'), ('TERM_PROGRAM_VERSION', '1.109.4'), ('VSCODE_IPC_HOOK_CLI', '/tmp/vscode-ipc-0c764baf-b3c8-49ae-af9e-511f9cd91900.sock'), ('ROS_PYTHON_VERSION', '3'), ('VSCODE_GIT_ASKPASS_MAIN', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/extensions/git/dist/askpass-main.js'), ('VSCODE_GIT_ASKPASS_NODE', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/node'), ('PYDEVD_DISABLE_FILE_VALIDATION', '1'), ('BUNDLED_DEBUGPY_PATH', '/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/libs/debugpy'), ('VSCODE_PYTHON_AUTOACTIVATE_GUARD', '1'), ('COLORTERM', 'truecolor'), ('REMOTE_CONTAINERS', 'true'), ('WAYLAND_DISPLAY', 'vscode-wayland-453c1dcc-c231-4ebd-9cad-f9db3e87e80c.sock'), ('ROS_DISTRO', 'humble'), ('REMOTE_CONTAINERS_IPC', '/tmp/vscode-remote-containers-ipc-6fc8cb52-7a65-48af-9ac4-a711af038165.sock'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('TERM', 'xterm-256color'), ('ROS_LOCALHOST_ONLY', '0'), ('HISTCONTROL', 'ignorespace'), ('PATH', '/opt/ros/humble/bin:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts'), ('XDG_RUNTIME_DIR', '/tmp/user/0'), ('REMOTE_CONTAINERS_SOCKETS', '["/tmp/.X11-unix/X1","/root/.gnupg/S.gpg-agent"]'), ('DISPLAY', ':1'), ('VSCODE_DEBUGPY_ADAPTER_ENDPOINTS', '/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/.noConfigDebugAdapterEndpoints/endpoint-89051de3c4270cac.txt'), ('LANG', 'C.UTF-8'), ('PYTHONSTARTUP', '/root/.vscode-server/data/User/workspaceStorage/9b980423a3389ed1b413d7da5e725363/ms-python.python/pythonrc.py'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('VSCODE_GIT_IPC_HANDLE', '/tmp/user/0/vscode-git-7146844c80.sock'), ('TERM_PROGRAM', 'vscode'), ('AMENT_PREFIX_PATH', '/opt/ros/humble'), ('REMOTE_CONTAINERS_DISPLAY_SOCK', '/tmp/.X11-unix/X1'), ('SHELL', '/bin/bash'), ('VSCODE_GIT_ASKPASS_EXTRA_ARGS', ''), ('GIT_PAGER', 'cat'), ('PWD', '/workspaces/omx_ros2/build/omx_variable_stiffness_controller'), ('LC_ALL', 'C.UTF-8'), ('PYTHONPATH', '/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/opt/ros/humble')]), 'shell': False}
+[0.054359] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.12 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[0.099736] (-) TimerEvent: {}
+[0.156293] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Override CMake install command with custom implementation using symlinks instead of copying resources\n'}
+[0.169955] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rclcpp: 16.0.17 (/opt/ros/humble/share/rclcpp/cmake)\n'}
+[0.199847] (-) TimerEvent: {}
+[0.203067] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[0.205394] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[0.211498] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[0.220754] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[0.230726] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[0.257597] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[0.259269] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.9 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[0.299953] (-) TimerEvent: {}
+[0.351401] (omx_variable_stiffness_controller) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[0.400116] (-) TimerEvent: {}
+[0.403643] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found rclcpp_lifecycle: 16.0.17 (/opt/ros/humble/share/rclcpp_lifecycle/cmake)\n'}
+[0.425231] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found controller_interface: 2.53.0 (/opt/ros/humble/share/controller_interface/cmake)\n'}
+[0.500657] (-) TimerEvent: {}
+[0.601164] (-) TimerEvent: {}
+[0.613266] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found kdl_parser: 2.6.4 (/opt/ros/humble/share/kdl_parser/cmake)\n'}
+[0.616964] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)\n'}
+[0.618534] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Ensuring Eigen3 include directory is part of orocos-kdl CMake target\n'}
+[0.622579] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found urdf: 2.6.1 (/opt/ros/humble/share/urdf/cmake)\n'}
+[0.637091] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found tf2_kdl: 0.25.18 (/opt/ros/humble/share/tf2_kdl/cmake)\n'}
+[0.701305] (-) TimerEvent: {}
+[0.711686] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Found tf2_eigen: 0.25.18 (/opt/ros/humble/share/tf2_eigen/cmake)\n'}
+[0.801558] (-) TimerEvent: {}
+[0.835530] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Configuring done\n'}
+[0.860751] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Generating done\n'}
+[0.865577] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Build files have been written to: /workspaces/omx_ros2/build/omx_variable_stiffness_controller\n'}
+[0.872738] (omx_variable_stiffness_controller) CommandEnded: {'returncode': 0}
+[0.874911] (omx_variable_stiffness_controller) JobProgress: {'identifier': 'omx_variable_stiffness_controller', 'progress': 'build'}
+[0.875094] (omx_variable_stiffness_controller) Command: {'cmd': ['/usr/bin/cmake', '--build', '/workspaces/omx_ros2/build/omx_variable_stiffness_controller', '--', '-j32', '-l32'], 'cwd': '/workspaces/omx_ros2/build/omx_variable_stiffness_controller', 'env': OrderedDict([('PYTHON_BASIC_REPL', '1'), ('HOSTNAME', '803b6a3ac0d5'), ('GIT_ASKPASS', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/extensions/git/dist/askpass.sh'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('BROWSER', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/bin/helpers/browser.sh'), ('HOME', '/root'), ('TERM_PROGRAM_VERSION', '1.109.4'), ('VSCODE_IPC_HOOK_CLI', '/tmp/vscode-ipc-0c764baf-b3c8-49ae-af9e-511f9cd91900.sock'), ('ROS_PYTHON_VERSION', '3'), ('VSCODE_GIT_ASKPASS_MAIN', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/extensions/git/dist/askpass-main.js'), ('VSCODE_GIT_ASKPASS_NODE', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/node'), ('PYDEVD_DISABLE_FILE_VALIDATION', '1'), ('BUNDLED_DEBUGPY_PATH', '/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/libs/debugpy'), ('VSCODE_PYTHON_AUTOACTIVATE_GUARD', '1'), ('COLORTERM', 'truecolor'), ('REMOTE_CONTAINERS', 'true'), ('WAYLAND_DISPLAY', 'vscode-wayland-453c1dcc-c231-4ebd-9cad-f9db3e87e80c.sock'), ('ROS_DISTRO', 'humble'), ('REMOTE_CONTAINERS_IPC', '/tmp/vscode-remote-containers-ipc-6fc8cb52-7a65-48af-9ac4-a711af038165.sock'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('TERM', 'xterm-256color'), ('ROS_LOCALHOST_ONLY', '0'), ('HISTCONTROL', 'ignorespace'), ('PATH', '/opt/ros/humble/bin:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts'), ('XDG_RUNTIME_DIR', '/tmp/user/0'), ('REMOTE_CONTAINERS_SOCKETS', '["/tmp/.X11-unix/X1","/root/.gnupg/S.gpg-agent"]'), ('DISPLAY', ':1'), ('VSCODE_DEBUGPY_ADAPTER_ENDPOINTS', '/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/.noConfigDebugAdapterEndpoints/endpoint-89051de3c4270cac.txt'), ('LANG', 'C.UTF-8'), ('PYTHONSTARTUP', '/root/.vscode-server/data/User/workspaceStorage/9b980423a3389ed1b413d7da5e725363/ms-python.python/pythonrc.py'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('VSCODE_GIT_IPC_HANDLE', '/tmp/user/0/vscode-git-7146844c80.sock'), ('TERM_PROGRAM', 'vscode'), ('AMENT_PREFIX_PATH', '/opt/ros/humble'), ('REMOTE_CONTAINERS_DISPLAY_SOCK', '/tmp/.X11-unix/X1'), ('SHELL', '/bin/bash'), ('VSCODE_GIT_ASKPASS_EXTRA_ARGS', ''), ('GIT_PAGER', 'cat'), ('PWD', '/workspaces/omx_ros2/build/omx_variable_stiffness_controller'), ('LC_ALL', 'C.UTF-8'), ('PYTHONPATH', '/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/opt/ros/humble')]), 'shell': False}
+[0.901687] (-) TimerEvent: {}
+[0.916035] (omx_variable_stiffness_controller) StdoutLine: {'line': b'[ 50%] \x1b[32mBuilding CXX object CMakeFiles/omx_variable_stiffness_controller.dir/src/omx_variable_stiffness_controller.cpp.o\x1b[0m\n'}
+[0.920520] (omx_variable_stiffness_controller) StdoutLine: {'line': b'[ 50%] Built target ament_cmake_python_symlink_omx_variable_stiffness_controller\n'}
+[1.001848] (-) TimerEvent: {}
+[1.102183] (-) TimerEvent: {}
+[1.112387] (omx_variable_stiffness_controller) StdoutLine: {'line': b'running egg_info\n'}
+[1.113257] (omx_variable_stiffness_controller) StdoutLine: {'line': b'creating omx_variable_stiffness_controller.egg-info\n'}
+[1.113702] (omx_variable_stiffness_controller) StdoutLine: {'line': b'writing omx_variable_stiffness_controller.egg-info/PKG-INFO\n'}
+[1.113909] (omx_variable_stiffness_controller) StdoutLine: {'line': b'writing dependency_links to omx_variable_stiffness_controller.egg-info/dependency_links.txt\n'}
+[1.114123] (omx_variable_stiffness_controller) StdoutLine: {'line': b'writing top-level names to omx_variable_stiffness_controller.egg-info/top_level.txt\n'}
+[1.117569] (omx_variable_stiffness_controller) StdoutLine: {'line': b"writing manifest file 'omx_variable_stiffness_controller.egg-info/SOURCES.txt'\n"}
+[1.120334] (omx_variable_stiffness_controller) StdoutLine: {'line': b"reading manifest file 'omx_variable_stiffness_controller.egg-info/SOURCES.txt'\n"}
+[1.120722] (omx_variable_stiffness_controller) StdoutLine: {'line': b"writing manifest file 'omx_variable_stiffness_controller.egg-info/SOURCES.txt'\n"}
+[1.143510] (omx_variable_stiffness_controller) StdoutLine: {'line': b'[ 50%] Built target ament_cmake_python_build_omx_variable_stiffness_controller_egg\n'}
+[1.202442] (-) TimerEvent: {}
+[1.302760] (-) TimerEvent: {}
+[1.403091] (-) TimerEvent: {}
+[1.503858] (-) TimerEvent: {}
+[1.604214] (-) TimerEvent: {}
+[1.704714] (-) TimerEvent: {}
+[1.805085] (-) TimerEvent: {}
+[1.905454] (-) TimerEvent: {}
+[2.006237] (-) TimerEvent: {}
+[2.106793] (-) TimerEvent: {}
+[2.207459] (-) TimerEvent: {}
+[2.308027] (-) TimerEvent: {}
+[2.408525] (-) TimerEvent: {}
+[2.509768] (-) TimerEvent: {}
+[2.610319] (-) TimerEvent: {}
+[2.710748] (-) TimerEvent: {}
+[2.811161] (-) TimerEvent: {}
+[2.911568] (-) TimerEvent: {}
+[3.011965] (-) TimerEvent: {}
+[3.113427] (-) TimerEvent: {}
+[3.213955] (-) TimerEvent: {}
+[3.314395] (-) TimerEvent: {}
+[3.414792] (-) TimerEvent: {}
+[3.515208] (-) TimerEvent: {}
+[3.615731] (-) TimerEvent: {}
+[3.716264] (-) TimerEvent: {}
+[3.816737] (-) TimerEvent: {}
+[3.917215] (-) TimerEvent: {}
+[4.017627] (-) TimerEvent: {}
+[4.118053] (-) TimerEvent: {}
+[4.218408] (-) TimerEvent: {}
+[4.318845] (-) TimerEvent: {}
+[4.419213] (-) TimerEvent: {}
+[4.519653] (-) TimerEvent: {}
+[4.620037] (-) TimerEvent: {}
+[4.720391] (-) TimerEvent: {}
+[4.820868] (-) TimerEvent: {}
+[4.921306] (-) TimerEvent: {}
+[5.021680] (-) TimerEvent: {}
+[5.122164] (-) TimerEvent: {}
+[5.222582] (-) TimerEvent: {}
+[5.322993] (-) TimerEvent: {}
+[5.423479] (-) TimerEvent: {}
+[5.524091] (-) TimerEvent: {}
+[5.624624] (-) TimerEvent: {}
+[5.725078] (-) TimerEvent: {}
+[5.825697] (-) TimerEvent: {}
+[5.926074] (-) TimerEvent: {}
+[6.026531] (-) TimerEvent: {}
+[6.126940] (-) TimerEvent: {}
+[6.227437] (-) TimerEvent: {}
+[6.327820] (-) TimerEvent: {}
+[6.428290] (-) TimerEvent: {}
+[6.528722] (-) TimerEvent: {}
+[6.629149] (-) TimerEvent: {}
+[6.729632] (-) TimerEvent: {}
+[6.830009] (-) TimerEvent: {}
+[6.930455] (-) TimerEvent: {}
+[7.030840] (-) TimerEvent: {}
+[7.131295] (-) TimerEvent: {}
+[7.231720] (-) TimerEvent: {}
+[7.332253] (-) TimerEvent: {}
+[7.432838] (-) TimerEvent: {}
+[7.533321] (-) TimerEvent: {}
+[7.633864] (-) TimerEvent: {}
+[7.734315] (-) TimerEvent: {}
+[7.834833] (-) TimerEvent: {}
+[7.935213] (-) TimerEvent: {}
+[8.035564] (-) TimerEvent: {}
+[8.135902] (-) TimerEvent: {}
+[8.236372] (-) TimerEvent: {}
+[8.336892] (-) TimerEvent: {}
+[8.437263] (-) TimerEvent: {}
+[8.537732] (-) TimerEvent: {}
+[8.638212] (-) TimerEvent: {}
+[8.738635] (-) TimerEvent: {}
+[8.838989] (-) TimerEvent: {}
+[8.939464] (-) TimerEvent: {}
+[9.039815] (-) TimerEvent: {}
+[9.140306] (-) TimerEvent: {}
+[9.240726] (-) TimerEvent: {}
+[9.341110] (-) TimerEvent: {}
+[9.441619] (-) TimerEvent: {}
+[9.542115] (-) TimerEvent: {}
+[9.642512] (-) TimerEvent: {}
+[9.743078] (-) TimerEvent: {}
+[9.843478] (-) TimerEvent: {}
+[9.943912] (-) TimerEvent: {}
+[10.044375] (-) TimerEvent: {}
+[10.144761] (-) TimerEvent: {}
+[10.245394] (-) TimerEvent: {}
+[10.345877] (-) TimerEvent: {}
+[10.446284] (-) TimerEvent: {}
+[10.546644] (-) TimerEvent: {}
+[10.647032] (-) TimerEvent: {}
+[10.747443] (-) TimerEvent: {}
+[10.847910] (-) TimerEvent: {}
+[10.948311] (-) TimerEvent: {}
+[11.048862] (-) TimerEvent: {}
+[11.149275] (-) TimerEvent: {}
+[11.249660] (-) TimerEvent: {}
+[11.350086] (-) TimerEvent: {}
+[11.450512] (-) TimerEvent: {}
+[11.550995] (-) TimerEvent: {}
+[11.651624] (-) TimerEvent: {}
+[11.752298] (-) TimerEvent: {}
+[11.852820] (-) TimerEvent: {}
+[11.953256] (-) TimerEvent: {}
+[12.053690] (-) TimerEvent: {}
+[12.154076] (-) TimerEvent: {}
+[12.254454] (-) TimerEvent: {}
+[12.354845] (-) TimerEvent: {}
+[12.455335] (-) TimerEvent: {}
+[12.555779] (-) TimerEvent: {}
+[12.656234] (-) TimerEvent: {}
+[12.756712] (-) TimerEvent: {}
+[12.857228] (-) TimerEvent: {}
+[12.957626] (-) TimerEvent: {}
+[13.058002] (-) TimerEvent: {}
+[13.158387] (-) TimerEvent: {}
+[13.258753] (-) TimerEvent: {}
+[13.359209] (-) TimerEvent: {}
+[13.459671] (-) TimerEvent: {}
+[13.560180] (-) TimerEvent: {}
+[13.660718] (-) TimerEvent: {}
+[13.761159] (-) TimerEvent: {}
+[13.861547] (-) TimerEvent: {}
+[13.961893] (-) TimerEvent: {}
+[14.062253] (-) TimerEvent: {}
+[14.162611] (-) TimerEvent: {}
+[14.262978] (-) TimerEvent: {}
+[14.363371] (-) TimerEvent: {}
+[14.463759] (-) TimerEvent: {}
+[14.564081] (-) TimerEvent: {}
+[14.664534] (-) TimerEvent: {}
+[14.766309] (-) TimerEvent: {}
+[14.866691] (-) TimerEvent: {}
+[14.967098] (-) TimerEvent: {}
+[15.067495] (-) TimerEvent: {}
+[15.168007] (-) TimerEvent: {}
+[15.268503] (-) TimerEvent: {}
+[15.368938] (-) TimerEvent: {}
+[15.469301] (-) TimerEvent: {}
+[15.569649] (-) TimerEvent: {}
+[15.670148] (-) TimerEvent: {}
+[15.770617] (-) TimerEvent: {}
+[15.871075] (-) TimerEvent: {}
+[15.971580] (-) TimerEvent: {}
+[16.072059] (-) TimerEvent: {}
+[16.172449] (-) TimerEvent: {}
+[16.272813] (-) TimerEvent: {}
+[16.373280] (-) TimerEvent: {}
+[16.473748] (-) TimerEvent: {}
+[16.574088] (-) TimerEvent: {}
+[16.674634] (-) TimerEvent: {}
+[16.775087] (-) TimerEvent: {}
+[16.875494] (-) TimerEvent: {}
+[16.975822] (-) TimerEvent: {}
+[17.076237] (-) TimerEvent: {}
+[17.176656] (-) TimerEvent: {}
+[17.277052] (-) TimerEvent: {}
+[17.377360] (-) TimerEvent: {}
+[17.477704] (-) TimerEvent: {}
+[17.578174] (-) TimerEvent: {}
+[17.678566] (-) TimerEvent: {}
+[17.778998] (-) TimerEvent: {}
+[17.879357] (-) TimerEvent: {}
+[17.979802] (-) TimerEvent: {}
+[18.080125] (-) TimerEvent: {}
+[18.180467] (-) TimerEvent: {}
+[18.280854] (-) TimerEvent: {}
+[18.381202] (-) TimerEvent: {}
+[18.481649] (-) TimerEvent: {}
+[18.581956] (-) TimerEvent: {}
+[18.682475] (-) TimerEvent: {}
+[18.783011] (-) TimerEvent: {}
+[18.883422] (-) TimerEvent: {}
+[18.983766] (-) TimerEvent: {}
+[19.084164] (-) TimerEvent: {}
+[19.184501] (-) TimerEvent: {}
+[19.284995] (-) TimerEvent: {}
+[19.385323] (-) TimerEvent: {}
+[19.485709] (-) TimerEvent: {}
+[19.586136] (-) TimerEvent: {}
+[19.686640] (-) TimerEvent: {}
+[19.787154] (-) TimerEvent: {}
+[19.887562] (-) TimerEvent: {}
+[19.987919] (-) TimerEvent: {}
+[20.088265] (-) TimerEvent: {}
+[20.188660] (-) TimerEvent: {}
+[20.289044] (-) TimerEvent: {}
+[20.389341] (-) TimerEvent: {}
+[20.489773] (-) TimerEvent: {}
+[20.590131] (-) TimerEvent: {}
+[20.690604] (-) TimerEvent: {}
+[20.790993] (-) TimerEvent: {}
+[20.891350] (-) TimerEvent: {}
+[20.991665] (-) TimerEvent: {}
+[21.092001] (-) TimerEvent: {}
+[21.192307] (-) TimerEvent: {}
+[21.292623] (-) TimerEvent: {}
+[21.392945] (-) TimerEvent: {}
+[21.493269] (-) TimerEvent: {}
+[21.593597] (-) TimerEvent: {}
+[21.694086] (-) TimerEvent: {}
+[21.794521] (-) TimerEvent: {}
+[21.895031] (-) TimerEvent: {}
+[21.995387] (-) TimerEvent: {}
+[22.095875] (-) TimerEvent: {}
+[22.196399] (-) TimerEvent: {}
+[22.296825] (-) TimerEvent: {}
+[22.397189] (-) TimerEvent: {}
+[22.497579] (-) TimerEvent: {}
+[22.598087] (-) TimerEvent: {}
+[22.698600] (-) TimerEvent: {}
+[22.799044] (-) TimerEvent: {}
+[22.899423] (-) TimerEvent: {}
+[22.999906] (-) TimerEvent: {}
+[23.085890] (omx_variable_stiffness_controller) StdoutLine: {'line': b'[100%] \x1b[32m\x1b[1mLinking CXX shared library libomx_variable_stiffness_controller.so\x1b[0m\n'}
+[23.100025] (-) TimerEvent: {}
+[23.200484] (-) TimerEvent: {}
+[23.300860] (-) TimerEvent: {}
+[23.401214] (-) TimerEvent: {}
+[23.501615] (-) TimerEvent: {}
+[23.602028] (-) TimerEvent: {}
+[23.702414] (-) TimerEvent: {}
+[23.802899] (-) TimerEvent: {}
+[23.903405] (-) TimerEvent: {}
+[24.003830] (-) TimerEvent: {}
+[24.104175] (-) TimerEvent: {}
+[24.204524] (-) TimerEvent: {}
+[24.230927] (omx_variable_stiffness_controller) StdoutLine: {'line': b'[100%] Built target omx_variable_stiffness_controller\n'}
+[24.238921] (omx_variable_stiffness_controller) CommandEnded: {'returncode': 0}
+[24.239610] (omx_variable_stiffness_controller) JobProgress: {'identifier': 'omx_variable_stiffness_controller', 'progress': 'install'}
+[24.245741] (omx_variable_stiffness_controller) Command: {'cmd': ['/usr/bin/cmake', '--install', '/workspaces/omx_ros2/build/omx_variable_stiffness_controller'], 'cwd': '/workspaces/omx_ros2/build/omx_variable_stiffness_controller', 'env': OrderedDict([('PYTHON_BASIC_REPL', '1'), ('HOSTNAME', '803b6a3ac0d5'), ('GIT_ASKPASS', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/extensions/git/dist/askpass.sh'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('BROWSER', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/bin/helpers/browser.sh'), ('HOME', '/root'), ('TERM_PROGRAM_VERSION', '1.109.4'), ('VSCODE_IPC_HOOK_CLI', '/tmp/vscode-ipc-0c764baf-b3c8-49ae-af9e-511f9cd91900.sock'), ('ROS_PYTHON_VERSION', '3'), ('VSCODE_GIT_ASKPASS_MAIN', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/extensions/git/dist/askpass-main.js'), ('VSCODE_GIT_ASKPASS_NODE', '/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/node'), ('PYDEVD_DISABLE_FILE_VALIDATION', '1'), ('BUNDLED_DEBUGPY_PATH', '/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/libs/debugpy'), ('VSCODE_PYTHON_AUTOACTIVATE_GUARD', '1'), ('COLORTERM', 'truecolor'), ('REMOTE_CONTAINERS', 'true'), ('WAYLAND_DISPLAY', 'vscode-wayland-453c1dcc-c231-4ebd-9cad-f9db3e87e80c.sock'), ('ROS_DISTRO', 'humble'), ('REMOTE_CONTAINERS_IPC', '/tmp/vscode-remote-containers-ipc-6fc8cb52-7a65-48af-9ac4-a711af038165.sock'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('TERM', 'xterm-256color'), ('ROS_LOCALHOST_ONLY', '0'), ('HISTCONTROL', 'ignorespace'), ('PATH', '/opt/ros/humble/bin:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/c3a26841a84f20dfe0850d0a5a9bd01da4f003ea/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts'), ('XDG_RUNTIME_DIR', '/tmp/user/0'), ('REMOTE_CONTAINERS_SOCKETS', '["/tmp/.X11-unix/X1","/root/.gnupg/S.gpg-agent"]'), ('DISPLAY', ':1'), ('VSCODE_DEBUGPY_ADAPTER_ENDPOINTS', '/root/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/.noConfigDebugAdapterEndpoints/endpoint-89051de3c4270cac.txt'), ('LANG', 'C.UTF-8'), ('PYTHONSTARTUP', '/root/.vscode-server/data/User/workspaceStorage/9b980423a3389ed1b413d7da5e725363/ms-python.python/pythonrc.py'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('VSCODE_GIT_IPC_HANDLE', '/tmp/user/0/vscode-git-7146844c80.sock'), ('TERM_PROGRAM', 'vscode'), ('AMENT_PREFIX_PATH', '/opt/ros/humble'), ('REMOTE_CONTAINERS_DISPLAY_SOCK', '/tmp/.X11-unix/X1'), ('SHELL', '/bin/bash'), ('VSCODE_GIT_ASKPASS_EXTRA_ARGS', ''), ('GIT_PAGER', 'cat'), ('PWD', '/workspaces/omx_ros2/build/omx_variable_stiffness_controller'), ('LC_ALL', 'C.UTF-8'), ('PYTHONPATH', '/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/opt/ros/humble')]), 'shell': False}
+[24.249870] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Install configuration: ""\n'}
+[24.250212] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Execute custom install script\n'}
+[24.250358] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller//plugin.xml\n'}
+[24.257675] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/environment/pythonpath.sh\n'}
+[24.262875] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/environment/pythonpath.dsv\n'}
+[24.269369] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/local/lib/python3.10/dist-packages/omx_variable_stiffness_controller-0.0.1-py3.10.egg-info/PKG-INFO\n'}
+[24.275094] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/local/lib/python3.10/dist-packages/omx_variable_stiffness_controller-0.0.1-py3.10.egg-info/SOURCES.txt\n'}
+[24.280976] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/local/lib/python3.10/dist-packages/omx_variable_stiffness_controller-0.0.1-py3.10.egg-info/dependency_links.txt\n'}
+[24.286741] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/local/lib/python3.10/dist-packages/omx_variable_stiffness_controller-0.0.1-py3.10.egg-info/top_level.txt\n'}
+[24.293004] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/local/lib/python3.10/dist-packages/omx_variable_stiffness_controller/__init__.py\n'}
+[24.298992] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/lib/omx_variable_stiffness_controller/load_stiffness.py\n'}
+[24.304172] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/lib/omx_variable_stiffness_controller/logger.py\n'}
+[24.304604] (-) TimerEvent: {}
+[24.309576] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/lib/libomx_variable_stiffness_controller.so\n'}
+[24.315075] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/include/omx_variable_stiffness_controller/omx_variable_stiffness_controller.hpp\n'}
+[24.321474] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/include/omx_variable_stiffness_controller/omx_variable_stiffness_controller_v0.hpp\n'}
+[24.327952] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/include/omx_variable_stiffness_controller/omx_variable_stiffness_controller_v001.hpp\n'}
+[24.334597] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Up-to-date symlink: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/plugin.xml\n'}
+[24.334888] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/config/robot1_stiffness_profile.csv\n'}
+[24.340861] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/config/robot1_variable_stiffness.yaml\n'}
+[24.346741] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/config/robot2_stiffness_profile.csv\n'}
+[24.352522] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/config/robot2_variable_stiffness.yaml\n'}
+[24.358514] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/config/stiffness_aniso.csv\n'}
+[24.365808] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/config/stiffness_profile.csv\n'}
+[24.371540] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/config/variable_stiffness_controller.yaml\n'}
+[24.377933] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/launch/dual_gazebo_variable_stiffness.launch.py\n'}
+[24.383681] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/launch/dual_hardware_variable_stiffness.launch.py\n'}
+[24.389206] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/launch/gazebo_variable_stiffness.launch.py\n'}
+[24.394657] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/launch/variable_stiffness_control.launch.py\n'}
+[24.400616] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/ament_index/resource_index/package_run_dependencies/omx_variable_stiffness_controller\n'}
+[24.404692] (-) TimerEvent: {}
+[24.406249] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/ament_index/resource_index/parent_prefix_path/omx_variable_stiffness_controller\n'}
+[24.411509] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/environment/ament_prefix_path.sh\n'}
+[24.417105] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/environment/ament_prefix_path.dsv\n'}
+[24.422938] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/environment/path.sh\n'}
+[24.429003] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/environment/path.dsv\n'}
+[24.434684] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/local_setup.bash\n'}
+[24.440280] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/local_setup.sh\n'}
+[24.445731] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/local_setup.zsh\n'}
+[24.451126] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/local_setup.dsv\n'}
+[24.456484] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/package.dsv\n'}
+[24.461821] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/ament_index/resource_index/packages/omx_variable_stiffness_controller\n'}
+[24.467202] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/ament_index/resource_index/controller_interface__pluginlib__plugin/omx_variable_stiffness_controller\n'}
+[24.472998] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/cmake/omx_variable_stiffness_controllerConfig.cmake\n'}
+[24.478514] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/cmake/omx_variable_stiffness_controllerConfig-version.cmake\n'}
+[24.484250] (omx_variable_stiffness_controller) StdoutLine: {'line': b'-- Symlinking: /workspaces/omx_ros2/install/omx_variable_stiffness_controller/share/omx_variable_stiffness_controller/package.xml\n'}
+[24.504791] (-) TimerEvent: {}
+[24.514818] (omx_variable_stiffness_controller) StdoutLine: {'line': b"Listing '/workspaces/omx_ros2/install/omx_variable_stiffness_controller/local/lib/python3.10/dist-packages/omx_variable_stiffness_controller'...\n"}
+[24.514937] (omx_variable_stiffness_controller) StdoutLine: {'line': b"Compiling '/workspaces/omx_ros2/install/omx_variable_stiffness_controller/local/lib/python3.10/dist-packages/omx_variable_stiffness_controller/__init__.py'...\n"}
+[24.519132] (omx_variable_stiffness_controller) CommandEnded: {'returncode': 0}
+[24.539698] (omx_variable_stiffness_controller) JobEnded: {'identifier': 'omx_variable_stiffness_controller', 'rc': 0}
+[24.540464] (-) EventReactorShutdown: {}

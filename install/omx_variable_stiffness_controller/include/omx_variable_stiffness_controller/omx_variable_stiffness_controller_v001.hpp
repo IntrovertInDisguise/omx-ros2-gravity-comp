@@ -1,0 +1,1 @@
+/workspaces/omx_ros2/ws/src/omx_variable_stiffness_controller/include/omx_variable_stiffness_controller/omx_variable_stiffness_controller_v001.hpp

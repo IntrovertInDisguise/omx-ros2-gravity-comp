@@ -1,0 +1,1 @@
+ament_cmake_symlink_install_targets("TARGET_FILES" "/workspaces/omx_ros2/build/omx_variable_stiffness_controller/libomx_variable_stiffness_controller.so" "TARGETS" "omx_variable_stiffness_controller" "ARCHIVE_DESTINATION" "lib" "LIBRARY_DESTINATION" "lib" "RUNTIME_DESTINATION" "bin")
