@@ -1,0 +1,1 @@
+2026-02-25 10:06:55 UTC - Reordered ros2_control_node definitions in dual_gazebo_gravity_comp.launch.py to occur after URDF generation; this should ensure controller_manager services are advertised when launch_gazebo=false. Updated project_status accordingly.
