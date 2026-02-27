@@ -288,6 +288,144 @@ files in the controller packages.
 # Sanity checks
 ros2 control list_controllers -c /robot1/controller_manager
 ros2 control list_controllers -c /robot2/controller_manager
+
+## Variable Stiffness Controller Integration (Gazebo + ros2_control)
+
+### Problem
+
+The custom controller `omx_variable_stiffness_controller/OmxVariableStiffnessController`:
+
+- Loaded successfully
+- Activated successfully
+- Claimed effort interfaces
+- Produced non-zero torques
+
+But:
+
+- Robot did not move
+- Controller parameters were not applied
+- Manipulability metric returned `inf`
+- Desired pose did not match configured trajectory
+- `/omx/controller_manager` only showed `.type` parameter
+
+Root cause:
+Controller-specific parameters were **not being loaded into the controller_manager namespace**, so the controller ran with default/internal values.
+
+### Key Fixes Applied
+
+#### 1️⃣ Verified Controller State
+
+Confirmed:
+
+```bash
+ros2 control list_controllers -c /omx/controller_manager
+```
+
+Result:
+
+```
+variable_stiffness_controller ... active
+```
+
+Verified effort ownership:
+
+```bash
+ros2 control list_hardware_interfaces -c /omx/controller_manager
+```
+
+Result:
+
+```
+joint1-4/effort [claimed]
+```
+
+Confirmed torque output:
+
+```bash
+ros2 topic echo /omx/variable_stiffness_controller/torque_values
+```
+
+Non-zero torque values observed.
+
+#### 2️⃣ Diagnosed Parameter Loading Failure
+
+Checked controller parameters:
+
+```bash
+ros2 param get /omx/controller_manager variable_stiffness_controller.start_position
+```
+
+Output:
+
+```
+Parameter not set.
+```
+
+Only parameter present:
+
+```
+variable_stiffness_controller.type
+```
+
+Conclusion:
+YAML controller parameters were not being injected into controller_manager.
+
+#### 3️⃣ Fixed Parameter Injection
+
+Applied **controller_manager-prefixed parameter injection**:
+
+```yaml
+/omx/controller_manager:
+  ros__parameters:
+    variable_stiffness_controller.start_position: [...]
+    variable_stiffness_controller.end_position: [...]
+    variable_stiffness_controller.target_orientation: [...]
+    ...
+```
+
+This guarantees parameters exist inside:
+
+```
+/omx/controller_manager
+```
+
+Which is where ros2_control controllers read them from.
+
+#### 4️⃣ Resolved Singularity Lock
+
+Observed:
+
+```
+manipulability_metrics → inf
+```
+
+Cause:
+Jacobian σ_min ≈ 0 → singular configuration.
+
+Temporary stability fix applied:
+
+```yaml
+variable_stiffness_controller.min_manipulability_threshold: 0.0
+variable_stiffness_controller.dls_damping_factor: 0.2
+```
+
+Also ensured trajectory avoids y=0 plane.
+
+### Final Working State
+
+- Gazebo running
+- robot_state_publisher available
+- controller_manager services active
+- variable_stiffness_controller:
+
+  - Loaded
+  - Configured
+  - Active
+  - Effort interfaces claimed
+  - Publishing torque_values
+  - Publishing pose, Jacobian, stiffness state
+  - Running state machine
+
 ```
 
 ### 3) Single Simulation Setup (1 robot in Gazebo) ⚠️ Untested
