@@ -6,6 +6,8 @@ This document captures the current state of the workspace, issues encountered, r
 
 **Update (2026-02-26 12:34 UTC):** Changes were committed and pushed to `origin/master` to capture the latest fixes and documentation updates.
 
+**Update (2026-02-27 UTC):** Synchronized `README.md` and `project_status.md`. Headless CI/unit tests are passing in the devcontainer (fake‑hardware, `launch_gazebo:=false`); full Gazebo integration tests remain pending and should be run on a host with `gzserver` and `gazebo_ros2_control`. Next immediate steps: run real‑Gazebo integration on capable host and verify controller manager reaches `active` state.
+
 ## 1. Overview
 
 - **Primary Objective:** Get the OpenManipulator-X simulation working with `ros2_control` in Gazebo, fix NaN joint velocities in `/omx/joint_states`, and provide a robust testing infrastructure.
