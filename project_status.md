@@ -106,6 +106,45 @@ This document captures the current state of the workspace, issues encountered, r
 
 ---
 
+**Update (2026-02-27 00:00 UTC):**
+
+## Current System State
+
+### ✔ Completed
+
+* Gazebo + ros2_control integration stable
+* Effort interface confirmed functional
+* Custom controller loads and activates
+* Torque commands verified non-zero
+* Controller publishes:
+
+  - Cartesian pose (desired & actual)
+  - Jacobian values
+  - Manipulability metrics
+  - Stiffness profile updates
+  - Contact wrench
+  - Torque outputs
+* Singularity handling functional (DLS + threshold logic)
+* YAML parameter loading root cause identified and corrected
+
+### ⚠ Known Issues / To Improve
+
+* Parameter structure should be cleaned long-term (avoid prefixed hack)
+* Start/end poses should be tuned for singularity robustness
+* Need proper controller_state diagnostic topic
+* Manipulability metric should guard against divide-by-zero explicitly
+* Consider joint-space validated trajectory option
+
+### 🔄 Next Milestones
+
+* Restore stricter singularity threshold after validation
+* Add logging for parameter validation at controller startup
+* Add assert for required params (fail fast)
+* Benchmark torque smoothness during transition phases
+* Document state machine transitions
+
+---
+
 *End of current status report.*
 
 ---
