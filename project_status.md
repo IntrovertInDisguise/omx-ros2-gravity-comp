@@ -235,3 +235,11 @@ This document captures the current state of the workspace, issues encountered, r
   activation issues and testing improvements.
 
 ---
+
+**Update (2026-03-02 UTC):**
+
+- Implemented event-driven controller bringup in `gazebo_variable_stiffness.launch.py` to avoid fragile fixed delays; spawners now chain on process exit and use controller-manager timeouts so controllers are loaded and activated automatically in Gazebo runs.
+- Fixed the singular JJT/LDLT failure in `omx_variable_stiffness_controller.cpp` by falling back to `tau = J^T * F` when DLS is inactive; this prevents torque zeroing/jerky motion for the 4‑DOF OM‑X robot.
+- Added `config/gazebo_variable_stiffness.yaml` with the full controller_manager namespace parameters and a 101-point bell stiffness/damping profile (100-waypoint trajectory at z=0.10 m).
+- Verified end-to-end GUI Gazebo run: controllers active, state machine cycles, and no LDLT errors observed.  Remaining action: commit/push these updates (this commit includes the documentation changes; code and config edits are already in the workspace).
+

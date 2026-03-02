@@ -33,6 +33,13 @@ The robots can be controlled via:
 - **Headless Tests**: ✅ **PASSING** — Unit and launch tests using `launch_gazebo:=false` (fake‑hardware) pass in the devcontainer (Feb 2026).
 - **Real Gazebo**: ⚠️ **NOT RUN** — Full Gazebo integration tests require a host with `gzserver` and `gazebo_ros2_control`; these are skipped inside the devcontainer and in CI by default.
 
+## Latest (2026-03-02)
+
+- Automatic controller bringup in Gazebo: event-driven spawner sequencing added so controllers are loaded and activated reliably without manual intervention. The launch now chains `spawn_entity` → joint_state_broadcaster → variable_stiffness_controller and uses controller-manager timeouts to avoid race conditions.
+- Critical stability fix: `omx_variable_stiffness_controller` now falls back to the Jacobian-transpose impedance law when DLS is inactive, preventing LDLT decomposition failures on the 4‑DOF OpenManipulator‑X and eliminating jerky motion at endpoints.
+- New Gazebo controller YAML: `config/gazebo_variable_stiffness.yaml` contains a 101-point bell stiffness/damping profile and controller_manager-prefixed parameters, ensuring the Gazebo plugin receives the full controller configuration.
+- Result: Smooth GUI simulation observed (trajectory at z=0.10 m, 100 waypoints), DLS switching works, and no JJT/LDLT errors were observed during runs.
+
 ## Overview
 
 This repository is a ROS 2 Humble workspace for OpenMANIPULATOR-X control.
