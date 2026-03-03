@@ -1,4 +1,7 @@
 # Colcon build artifacts
+build/
+install/
+log/
 ws/build/
 ws/install/
 ws/log/

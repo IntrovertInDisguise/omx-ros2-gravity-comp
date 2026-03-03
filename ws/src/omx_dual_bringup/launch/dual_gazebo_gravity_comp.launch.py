@@ -23,6 +23,7 @@ from launch.substitutions import (
     LaunchConfiguration,
     PathJoinSubstitution,
     TextSubstitution,
+    PythonExpression,
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -61,12 +62,17 @@ def _robot_group(
         output='screen'
     )
 
+    # only spawn controllers when Gazebo is actually running; the
+    # controller_manager parameters already request the two controllers so
+    # on fake‑hardware runs they load themselves and the spawners only add
+    # extra service traffic that tends to break the headless tests.
     joint_state_spawner = Node(
         package='controller_manager',
         executable='spawner',
         name=f'spawner_{robot_name}_joint_state_broadcaster',
         arguments=['joint_state_broadcaster', '--controller-manager', f'/{robot_name}/controller_manager'],
-        output='screen'
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('launch_gazebo')),
     )
 
     gravity_spawner = Node(
@@ -74,7 +80,8 @@ def _robot_group(
         executable='spawner',
         name=f'spawner_{robot_name}_gravity_comp',
         arguments=[f'{robot_name}_gravity_comp', '--controller-manager', f'/{robot_name}/controller_manager'],
-        output='screen'
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('launch_gazebo')),
     )
 
     load_jsb = RegisterEventHandler(
@@ -113,13 +120,14 @@ def _build_gazebo_nodes(context, *args, **kwargs):
     if gazebo_mode == 'single':
         gazebo_server = ExecuteProcess(
             cmd=['gzserver', '-s', 'libgazebo_ros_init.so', '-s', 'libgazebo_ros_factory.so'],
-            output='screen'
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('launch_gazebo')),
         )
 
         gazebo_client = ExecuteProcess(
             cmd=['gzclient'],
             output='screen',
-            condition=IfCondition(start_gzclient)
+            condition=IfCondition(LaunchConfiguration('launch_gazebo')),
         )
 
         spawn_robot1 = Node(
@@ -157,7 +165,8 @@ def _build_gazebo_nodes(context, *args, **kwargs):
             executable='spawner',
             name='spawner_robot1_joint_state_broadcaster',
             arguments=['joint_state_broadcaster', '--controller-manager', '/robot1/controller_manager'],
-            output='screen'
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('launch_gazebo')),
         )
 
         robot1_gravity_spawner = Node(
@@ -165,7 +174,8 @@ def _build_gazebo_nodes(context, *args, **kwargs):
             executable='spawner',
             name='spawner_robot1_gravity_comp',
             arguments=['robot1_gravity_comp', '--controller-manager', '/robot1/controller_manager'],
-            output='screen'
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('launch_gazebo')),
         )
 
         robot2_joint_state_spawner = Node(
@@ -173,7 +183,8 @@ def _build_gazebo_nodes(context, *args, **kwargs):
             executable='spawner',
             name='spawner_robot2_joint_state_broadcaster',
             arguments=['joint_state_broadcaster', '--controller-manager', '/robot2/controller_manager'],
-            output='screen'
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('launch_gazebo')),
         )
 
         robot2_gravity_spawner = Node(
@@ -181,7 +192,8 @@ def _build_gazebo_nodes(context, *args, **kwargs):
             executable='spawner',
             name='spawner_robot2_gravity_comp',
             arguments=['robot2_gravity_comp', '--controller-manager', '/robot2/controller_manager'],
-            output='screen'
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('launch_gazebo')),
         )
 
         load_robot1_jsb = RegisterEventHandler(
@@ -305,6 +317,21 @@ def generate_launch_description():
             description='Whether to start RViz2'
         ),
         DeclareLaunchArgument(
+            'launch_gazebo',
+            default_value='true',
+            description='Whether to start gzserver (disable for headless tests)'
+        ),
+        DeclareLaunchArgument(
+            'use_sim',
+            default_value='true',
+            description='Pass-through to URDF xacro: enable simulation plugin'
+        ),
+        DeclareLaunchArgument(
+            'use_fake_hardware',
+            default_value='false',
+            description='Pass-through to URDF xacro: use generic fake hardware'
+        ),
+        DeclareLaunchArgument(
             'gazebo_mode',
             default_value='single',
             description='Gazebo mode: single (one server) or dual (two servers)'
@@ -337,6 +364,9 @@ def generate_launch_description():
     ]
 
     start_rviz = LaunchConfiguration('start_rviz')
+    launch_gazebo = LaunchConfiguration('launch_gazebo')
+    use_sim = LaunchConfiguration('use_sim')
+    use_fake_hardware = LaunchConfiguration('use_fake_hardware')
     start_gzclient = LaunchConfiguration('start_gzclient')
 
     controller_config_robot1 = PathJoinSubstitution([
@@ -349,14 +379,18 @@ def generate_launch_description():
         'config', 'robot2_gravity_comp.yaml'
     ])
 
+    # URDF flags now directly controlled by launch arguments
+    sim_arg = use_sim
+    fake_hw = use_fake_hardware
+
     urdf_robot1 = Command([
         PathJoinSubstitution([FindExecutable(name='xacro')]), ' ',
         PathJoinSubstitution([
             FindPackageShare('open_manipulator_x_description'),
             'urdf', 'open_manipulator_x_robot.urdf.xacro'
         ]),
-        ' use_sim:=true',
-        ' use_fake_hardware:=false',
+        ' use_sim:=', sim_arg,
+        ' use_fake_hardware:=', fake_hw,
         ' controller_config:=', controller_config_robot1,
         ' robot_namespace:=robot1',
         ' prefix:=robot1_',
@@ -368,8 +402,8 @@ def generate_launch_description():
             FindPackageShare('open_manipulator_x_description'),
             'urdf', 'open_manipulator_x_robot.urdf.xacro'
         ]),
-        ' use_sim:=true',
-        ' use_fake_hardware:=false',
+        ' use_sim:=', sim_arg,
+        ' use_fake_hardware:=', fake_hw,
         ' controller_config:=', controller_config_robot2,
         ' robot_namespace:=robot2',
         ' prefix:=robot2_',
@@ -380,13 +414,15 @@ def generate_launch_description():
         'rviz', 'dual_robots.rviz'
     ])
 
+    from launch_ros.parameter_descriptions import ParameterValue
+
     robot1_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         name='robot_state_publisher',
         namespace='robot1',
         parameters=[{
-            'robot_description': urdf_robot1,
+            'robot_description': ParameterValue(urdf_robot1, value_type=str),
             'use_sim_time': True,
         }],
         output='screen'
@@ -398,10 +434,35 @@ def generate_launch_description():
         name='robot_state_publisher',
         namespace='robot2',
         parameters=[{
-            'robot_description': urdf_robot2,
+            'robot_description': ParameterValue(urdf_robot2, value_type=str),
             'use_sim_time': True,
         }],
         output='screen'
+    )
+
+    # standalone controller_managers for headless testing
+    ros2_control_r1 = Node(
+        package='controller_manager',
+        executable='ros2_control_node',
+        name='controller_manager',
+        namespace='robot1',
+        parameters=[
+            {'robot_description': ParameterValue(urdf_robot1, value_type=str), 'use_sim_time': True},
+            controller_config_robot1,
+        ],
+        output='screen',
+    )
+
+    ros2_control_r2 = Node(
+        package='controller_manager',
+        executable='ros2_control_node',
+        name='controller_manager',
+        namespace='robot2',
+        parameters=[
+            {'robot_description': ParameterValue(urdf_robot2, value_type=str), 'use_sim_time': True},
+            controller_config_robot2,
+        ],
+        output='screen',
     )
 
     rviz_node = Node(
@@ -418,6 +479,8 @@ def generate_launch_description():
         *declared_arguments,
         robot1_state_publisher,
         robot2_state_publisher,
+        ros2_control_r1,
+        ros2_control_r2,
         OpaqueFunction(function=_build_gazebo_nodes),
         rviz_node,
     ]

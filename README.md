@@ -20,7 +20,7 @@ The robots can be controlled via:
 | **Variable Stiffness** | Single Sim | ✅ **TESTED** | Verified Feb 2026 with mock hardware |
 | **Variable Stiffness** | Single Hardware | 🔧 Ready | Awaiting physical robot connection |
 | **Variable Stiffness** | Dual Hardware | 🔧 Ready | Awaiting physical robot connection |
-| **Variable Stiffness** | Single Gazebo | ✅ **TESTED** | Gazebo builds and launches; headless mode now runs with fake hardware.  Controller load issue fixed via URDF command‑interface patch. |
+| **Variable Stiffness** | Single Gazebo | ✅ **TESTED** | Gazebo verified Mar 2026: singularity-safe IK, joint-space homing, EE stays x>0 throughout. |
 | **Variable Stiffness** | Dual Gazebo | ⚠️ Untested | Code complete, not run in sim |
 
 **Legend:**
@@ -33,12 +33,13 @@ The robots can be controlled via:
 - **Headless Tests**: ✅ **PASSING** — Unit and launch tests using `launch_gazebo:=false` (fake‑hardware) pass in the devcontainer (Feb 2026).
 - **Real Gazebo**: ⚠️ **NOT RUN** — Full Gazebo integration tests require a host with `gzserver` and `gazebo_ros2_control`; these are skipped inside the devcontainer and in CI by default.
 
-## Latest (2026-03-02)
+## Latest (2026-03-03)
 
-- Automatic controller bringup in Gazebo: event-driven spawner sequencing added so controllers are loaded and activated reliably without manual intervention. The launch now chains `spawn_entity` → joint_state_broadcaster → variable_stiffness_controller and uses controller-manager timeouts to avoid race conditions.
-- Critical stability fix: `omx_variable_stiffness_controller` now falls back to the Jacobian-transpose impedance law when DLS is inactive, preventing LDLT decomposition failures on the 4‑DOF OpenManipulator‑X and eliminating jerky motion at endpoints.
-- New Gazebo controller YAML: `config/gazebo_variable_stiffness.yaml` contains a 101-point bell stiffness/damping profile and controller_manager-prefixed parameters, ensuring the Gazebo plugin receives the full controller configuration.
-- Result: Smooth GUI simulation observed (trajectory at z=0.10 m, 100 waypoints), DLS switching works, and no JJT/LDLT errors were observed during runs.
+- **Singularity-safe IK pipeline**: replaced KDL LMA with a custom position-only Jacobian pseudo-inverse IK (damped, 3×4) plus null-space bias toward a seed configuration. Backward-walk seeding (end→start) ensures the solver stays in the correct elbow-down arm basin.
+- **Joint-space homing**: new JOINT_SPACE_HOMING torque mode uses PD control with cosine interpolation from the spawn pose to the first waypoint, avoiding Cartesian impedance flips through x<0.
+- **Joint-space regularization**: during MOVE/WAIT states an additive `K*(q_planned−q) − D*q̇` term keeps the arm near the planned configuration, improving z-tracking by ~40%.
+- **Gazebo verified** (Mar 2026): controller activates, state machine cycles (HOMING → MOVE_FORWARD → WAIT_AT_END → MOVE_RETURN → WAIT_AT_START), EE x always > 0, z-tracking error 0.03–0.08 m (expected for compliant stiffness profile).
+- Previous (2026-03-02): event-driven spawner sequencing, JJT/LDLT fallback fix, `gazebo_variable_stiffness.yaml` with 101-point bell profile.
 
 ## Overview
 
@@ -71,12 +72,27 @@ You can run:
 🔧 Runtime waypoint command interface (offset + absolute modes, waypoint queue)
 🔧 Support for both hardware and Gazebo simulation
 
+### Experimental Behavior (Temporary Deviated Waypoints)
+
+- The controller now supports a temporary-deviation mode: when an external
+  runtime waypoint is published the controller will blend to the requested
+  offset/absolute pose using temporary interpolant waypoints, hold briefly,
+  and then interpolate back to rejoin the original configured trajectory.
+- Purpose: let transient sensor inputs or operator nudges be applied without
+  permanently altering the planned trajectory — the robot keeps aiming at
+  the configured path and returns automatically.
+- Status: UNTESTED — implemented in the controller code and exercised with
+  a small publish/listen helper, but this behavior has not been fully
+  validated in Gazebo GUI or on hardware. Validate carefully before use.
+
 ### Safety Features (Variable Stiffness Controller)
-✅ **Pre-trajectory IK Validation**: Validates entire trajectory via IK before execution
-✅ **Singularity Detection**: Uses σ_min (minimum singular value of EE jacobian) for robust singularity measure
+✅ **Pre-trajectory IK Validation**: Validates entire trajectory via position-only Jacobian pseudo-inverse IK (backward-walk seeding) before execution
+✅ **Singularity Detection**: Uses σ_min (minimum singular value of EE Jacobian) for robust singularity measure
 ✅ **Joint Limits Enforcement**: Checks URDF joint limits at all waypoints
 ✅ **Damped Least Squares (DLS)**: Adaptive damping near singularities prevents torque spikes
 ✅ **Manipulability Threshold**: Rejects trajectories that pass through low-manipulability regions
+✅ **Joint-space Homing**: PD homing bypasses Cartesian impedance to prevent arm flips through singular regions
+✅ **Joint-space Regularization**: Keeps arm near planned configuration during compliant trajectory execution
 
 ## Directory Structure
 
@@ -291,6 +307,31 @@ files in the controller packages.
 
 # Optional: full isolation using two Gazebo servers
 # ros2 launch omx_dual_bringup dual_gazebo_gravity_comp.launch.py gazebo_mode:=dual
+
+### Recommended GUI launch (what to use when you need the Gazebo client)
+
+If you require the Gazebo GUI (gzclient) for visual debugging or interactive
+tests, launch with the GUI flag and a small controller spawn delay so the
+`spawn_entity` and controller_manager sequencing finish reliably. Note
+that the container needs host X access (e.g. `xhost +local:docker`) and the
+devcontainer must include Qt/XCB libs (this repo's devcontainer setup
+attempts to install them). Example:
+
+```bash
+cd /workspaces/omx_ros2/ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch omx_variable_stiffness_controller gazebo_variable_stiffness.launch.py \
+  gui:=true launch_gazebo:=true spawn_delay:=0.1 controller_delay:=3.0 \
+  stiffness_loader_delay:=4.0 enable_logger:=true
+```
+
+Why this differs from the headless examples: `gzclient` requires a working
+X server and extra GUI libraries not present in CI/devcontainer images by
+default. The listed command is intentionally explicit about spawn/controller
+delays to avoid race conditions observed when the Gazebo factory or the
+controller manager is not yet ready. Always prefer the README-recommended
+command; if you need a different procedure explain why and update this file.
 
 # Sanity checks
 ros2 control list_controllers -c /robot1/controller_manager

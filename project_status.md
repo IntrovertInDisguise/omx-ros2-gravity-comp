@@ -243,3 +243,130 @@ This document captures the current state of the workspace, issues encountered, r
 - Added `config/gazebo_variable_stiffness.yaml` with the full controller_manager namespace parameters and a 101-point bell stiffness/damping profile (100-waypoint trajectory at z=0.10 m).
 - Verified end-to-end GUI Gazebo run: controllers active, state machine cycles, and no LDLT errors observed.  Remaining action: commit/push these updates (this commit includes the documentation changes; code and config edits are already in the workspace).
 
+---
+
+## Recording successful runs
+
+When you reach a working state and want to capture the exact steps and recent
+history that led to it, use the helper script `tools/record_success.py`.
+
+Usage examples:
+
+```bash
+# Append a success record with the default message "It works!"
+tools/record_success.py
+
+# Append a custom message
+tools/record_success.py "It works! GUI simulation validated and controller active"
+```
+
+The script appends a timestamped section to this file containing:
+- the user-provided message
+- a short list of recent git commits (most recent first)
+- a list of recently changed files (git diff HEAD~50..HEAD)
+
+This provides a reproducible changelog of what produced a working state.
+
+## Note (2026-03-03): Temporary deviation handling (experimental, untested)
+
+- Implemented a temporary interpolant waypoint behavior in the
+  `omx_variable_stiffness_controller`. When a runtime waypoint command is
+  received the controller will briefly blend to the commanded (offset or
+  absolute) pose via a short set of interpolant waypoints and then rejoin
+  the configured trajectory. This preserves the configured trajectory time
+  base and ensures the robot attempts to return to the main path after the
+  temporary deviation.
+
+- Status: UNTESTED — code changes are present in the workspace and a
+  listener/publisher helper was used to exercise the flow locally, but the
+  temporary-interpolant behavior needs systematic verification in Gazebo
+  (GUI) and on hardware. Use caution: this is experimental and must be
+  validated before relying on it for autonomous operations.
+
+
+
+---
+
+## Update (2026-03-03 — Singularity-Safe IK & Joint-Space Homing)
+
+### Problem
+Robot traversed through singular regions (x<0) despite start `[0.30, 0.02, 0.10]`
+and end `[0.14, 0.02, 0.10]` both having x>0.
+
+### Root Causes & Fixes
+
+1. **Over-constrained IK:** KDL LMA with equal 6-DOF weights on a 4-DOF arm
+   could not converge on position.
+   → Replaced with custom **position-only Jacobian pseudo-inverse IK** (damped
+   3×4 Jacobian, null-space bias toward seed, `null_gain=1.0`).
+
+2. **Wrong arm configuration in IK:** Forward-walk seeding from `q_preferred_`
+   converged to near-straight arm (q2≈0.26) instead of elbow-down (q2≈−0.99).
+   → **Backward-walk seeding** (solve end position first, walk s=1→0 with
+   warm-starting). End position reliably finds elbow-down; warm-starting
+   propagates it to start.
+
+3. **Cartesian homing flips through x<0:** `J^T·F` torques during HOMING could
+   flip joint1 by ~180°.
+   → **Joint-space PD homing** (`tau = G + K*(q_target−q) − D*q̇`) with cosine
+   interpolation, bypassing Cartesian impedance entirely.
+
+4. **z-tracking error (~0.08 m):** Compliant Cartesian stiffness (K=18–35 N/m)
+   allows gravity sag.
+   → **Joint-space regularization** during MOVE/WAIT: `tau += K_reg*(q_planned−q)
+   − D_reg*q̇` (K_reg=15.0, D_reg=1.0) reduces z-error to 0.03–0.08 m.
+
+### Files Changed
+
+| File | Change Summary |
+|------|---------------|
+| `omx_variable_stiffness_controller.hpp` | Added `q_at_activation_`, homing/regularization gain members |
+| `omx_variable_stiffness_controller.cpp` | Position-only Jacobian IK with backward-walk seeding; JOINT_SPACE_HOMING torque mode; joint-space regularization in NORMAL mode; weighted LMA kept for fallback |
+| `gazebo_variable_stiffness.yaml` | `use_joint_space_trajectory: true`, `singularity_preferred_joints: [0, −0.8, 0.8, 0.5]`, homing/reg gains |
+
+### Gazebo Test Results (Mar 2026)
+
+- **IK validation**: PASSED — 101 waypoints, min σ=0.071
+- **End (s=1) IK**: q=[0.147, −0.987, 0.912, 0.720] (correct elbow-down)
+- **Start (s=0) IK**: q=[0.070, 0.255, 0.147, −0.031] (warm-started from end)
+- **Controller**: configured and activated successfully
+- **State machine**: HOMING → MOVE_FORWARD → WAIT_AT_END → MOVE_RETURN → WAIT_AT_START (cyclic)
+- **EE x**: always > 0 (range 0.14–0.30) — **singularity fix confirmed**
+- **EE z-error**: 0.03–0.08 m (expected for variable-compliance design)
+
+### Remaining Work
+- `use_joint_space_trajectory: false` — not yet tested
+- Waypoint deviation feature — not yet tested
+- Dual Gazebo mode — not yet tested
+- Hardware deployment — awaiting physical robot
+
+---
+
+## Success record: 2026-03-03 09:05:22 UTC
+**Message:** Initial record: enabled automated recording helper
+**Recent commits (most recent first):**
+- c5c5d96 2026-03-02 docs: update README and project_status (2026-03-02) — controller bringup and JJT fix (OMX Controller)
+- 87a27ee 2026-02-27 Fix variable_stiffness_controller parameter loading and singularity lock (OMX Controller)
+- 0b85bde 2026-02-27 docs: update project status and README (2026-02-27) (OMX Controller)
+- 333d9ad 2026-02-26 docs: update project_status.md (note commit/push) (OMX Controller)
+- 4c40ef2 2026-02-25 docs: update project_status.md — devcontainer, tests, current blocker (variable_stiffness_controller) (OMX Controller)
+- a02460a 2026-02-25 docs: update project_status.md — devcontainer, tests, current blocker (variable_stiffness_controller) (OMX Controller)
+- 9f5109f 2026-02-13 Restore controller implementation from v0; align with header (OMX Controller)
+- c20c491 2026-02-12 refactor: rename fake_hardware to sim (OMX Controller)
+- e4a0eb5 2026-02-12 feat(variable_stiffness): Add trajectory safety features and singularity protection (OMX Controller)
+- 26da27d 2026-02-12 docs: Add data logging section with CSV columns and save instructions (OMX Controller)
+- 0200486 2026-02-11 Add clear testing status to README (OMX Controller)
+- 2047d6b 2026-02-11 Add runtime waypoint command interface for trajectory deviations (OMX Controller)
+- 3a9ab55 2026-02-11 Add all 4 variable stiffness launch modes to README (OMX Controller)
+- 74c9d06 2026-02-11 Update README: Add Variable Cartesian Impedance Controller documentation (OMX Controller)
+- c361c60 2026-02-11 Add hardware safety limits (stiffness ≤65 N/m, damping ≤3 Ns/m) and manipulability metrics publishing (OMX Controller)
+- 3f9559c 2026-02-11 Fix dual hardware gravity comp: correct controller names, add robot prefixes, increase torque_scale (IntrovertInDisguise)
+- 28e5a2d 2026-02-10 docs: add overview (IntrovertInDisguise)
+- 43aeeb2 2026-02-10 docs: add overview and minimal post-clone setup (IntrovertInDisguise)
+- 3634cfb 2026-02-10 docs: clarify per-mode dependency locations (IntrovertInDisguise)
+- 8ba6921 2026-02-10 docs: add per-mode setup commands (IntrovertInDisguise)
+
+**Recent changed files (git diff HEAD~50..HEAD):**
+- (git diff unavailable)
+
+---

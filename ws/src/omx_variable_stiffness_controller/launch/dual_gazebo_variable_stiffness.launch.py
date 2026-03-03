@@ -9,7 +9,6 @@ Each arm has its own independent trajectory and stiffness profile.
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
-    ExecuteProcess,
     IncludeLaunchDescription,
     TimerAction,
 )
@@ -168,6 +167,7 @@ def generate_launch_description():
     robot1_controller_manager = Node(
         package='controller_manager',
         executable='ros2_control_node',
+        name='controller_manager',
         namespace='robot1',
         parameters=[
             {'robot_description': urdf_robot1, 'use_sim_time': True},
@@ -180,6 +180,7 @@ def generate_launch_description():
     robot2_controller_manager = Node(
         package='controller_manager',
         executable='ros2_control_node',
+        name='controller_manager',
         namespace='robot2',
         parameters=[
             {'robot_description': urdf_robot2, 'use_sim_time': True},
@@ -189,33 +190,53 @@ def generate_launch_description():
     )
 
     # Load controllers for Robot 1
-    load_joint_state_broadcaster_robot1 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot1/controller_manager',
-             'joint_state_broadcaster'],
-        output='screen'
+    load_joint_state_broadcaster_robot1 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'joint_state_broadcaster',
+            '--controller-manager', '/robot1/controller_manager',
+            '--param-file', controller_config_robot1,
+            '--set-state', 'active',
+        ],
+        output='screen',
     )
 
-    load_variable_stiffness_controller_robot1 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot1/controller_manager',
-             'robot1_variable_stiffness'],
-        output='screen'
+    load_variable_stiffness_controller_robot1 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'robot1_variable_stiffness',
+            '--controller-manager', '/robot1/controller_manager',
+            '--param-file', controller_config_robot1,
+            '--set-state', 'active',
+        ],
+        output='screen',
     )
 
     # Load controllers for Robot 2
-    load_joint_state_broadcaster_robot2 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot2/controller_manager',
-             'joint_state_broadcaster'],
-        output='screen'
+    load_joint_state_broadcaster_robot2 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'joint_state_broadcaster',
+            '--controller-manager', '/robot2/controller_manager',
+            '--param-file', controller_config_robot2,
+            '--set-state', 'active',
+        ],
+        output='screen',
     )
 
-    load_variable_stiffness_controller_robot2 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot2/controller_manager',
-             'robot2_variable_stiffness'],
-        output='screen'
+    load_variable_stiffness_controller_robot2 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'robot2_variable_stiffness',
+            '--controller-manager', '/robot2/controller_manager',
+            '--param-file', controller_config_robot2,
+            '--set-state', 'active',
+        ],
+        output='screen',
     )
 
     # Delay controller loading for Gazebo startup

@@ -1,0 +1,173 @@
+# ============================================================
+#  gazebo_variable_stiffness.yaml
+#  Gazebo-specific controller_manager config for variable stiffness
+#  RADIAL PUSH TEST — 6 cm, z = 0.10 m, 100-waypoint bell profile
+# ============================================================
+#
+#  This file is loaded by the gazebo_ros2_control plugin via the
+#  <parameters> tag in the URDF xacro.  ALL controller params must
+#  live under /omx/controller_manager so the plugin can set them.
+
+/omx/controller_manager:
+  ros__parameters:
+    use_sim_time: true
+    update_rate: 100
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    variable_stiffness_controller:
+      type: omx_variable_stiffness_controller/OmxVariableStiffnessController
+      # Ensure controller_manager has the essential trajectory params
+      # (some environments inject params only under the controller_manager
+      # node; duplicating them here guarantees the controller sees them).
+      variable_stiffness_controller.start_position: [0.30, 0.02, 0.10]
+      variable_stiffness_controller.end_position:   [0.14, 0.02, 0.10]
+      variable_stiffness_controller.target_orientation: [0.0, 0.5, 0.0]
+      variable_stiffness_controller.num_trajectory_samples: 100
+      variable_stiffness_controller.use_joint_space_trajectory: true
+
+/omx/variable_stiffness_controller:
+  ros__parameters:
+    use_sim_time: true
+
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+
+    state_interfaces:
+      - position
+      - velocity
+      - effort
+    command_interfaces:
+      - effort
+
+    root_link: world
+    tip_link: end_effector_link
+    robot_description_node: "/omx/robot_state_publisher"
+    torque_scale: 1.0
+
+    # ── Trajectory (radial line at z = 10 cm) ────────────────
+    # Centered in the best-conditioned workspace zone (sigma_min > 0.05)
+    # to avoid near-singular configurations at elbow-cramped and
+    # near-extension limits.  6 cm travel, 100 waypoints (0.6 mm/step).
+    start_position: [0.30, 0.02, 0.10]
+    end_position:   [0.14, 0.02, 0.10]
+    target_orientation: [0.0, 0.5, 0.0]
+
+    homing_duration: 8.0
+    move_duration:   15.0
+    wait_duration:   3.0
+
+    # ── Homing / Wait impedance ──────────────────────────────
+    stiffness_homing: [50.0, 50.0, 50.0]
+    damping_default:  [3.0,  3.0,  3.0]
+    stiffness_rot:    [15.0, 15.0, 15.0]
+    damping_rot:      [0.8,  0.8,  0.8]
+    max_rise_rate: 50.0
+
+    # ── Variable Stiffness Profile (101-point bell, 100 intervals)
+    stiffness_profile_x:
+      [10.0, 10.025, 10.099, 10.221, 10.393, 10.612, 10.878, 11.19, 11.546, 11.946,
+      12.387, 12.869, 13.388, 13.943, 14.532, 15.153, 15.802, 16.478, 17.178, 17.898,
+      18.637, 19.391, 20.158, 20.933, 21.715, 22.5, 23.285, 24.067, 24.842, 25.609,
+      26.363, 27.102, 27.822, 28.522, 29.198, 29.847, 30.468, 31.057, 31.612, 32.131,
+      32.613, 33.054, 33.454, 33.81, 34.122, 34.388, 34.607, 34.779, 34.901, 34.975,
+      35.0, 34.975, 34.901, 34.779, 34.607, 34.388, 34.122, 33.81, 33.454, 33.054,
+      32.613, 32.131, 31.612, 31.057, 30.468, 29.847, 29.198, 28.522, 27.822, 27.102,
+      26.363, 25.609, 24.842, 24.067, 23.285, 22.5, 21.715, 20.933, 20.158, 19.391,
+      18.637, 17.898, 17.178, 16.478, 15.802, 15.153, 14.532, 13.943, 13.388, 12.869,
+      12.387, 11.946, 11.546, 11.19, 10.878, 10.612, 10.393, 10.221, 10.099, 10.025,
+      10.0]
+
+    stiffness_profile_y:
+      [12.0, 12.016, 12.063, 12.142, 12.251, 12.392, 12.562, 12.761, 12.99, 13.245,
+      13.528, 13.836, 14.168, 14.524, 14.901, 15.298, 15.713, 16.146, 16.594, 17.055,
+      17.528, 18.01, 18.501, 18.997, 19.498, 20.0, 20.502, 21.003, 21.499, 21.99,
+      22.472, 22.945, 23.406, 23.854, 24.287, 24.702, 25.099, 25.476, 25.832, 26.164,
+      26.472, 26.755, 27.01, 27.239, 27.438, 27.608, 27.749, 27.858, 27.937, 27.984,
+      28.0, 27.984, 27.937, 27.858, 27.749, 27.608, 27.438, 27.239, 27.01, 26.755,
+      26.472, 26.164, 25.832, 25.476, 25.099, 24.702, 24.287, 23.854, 23.406, 22.945,
+      22.472, 21.99, 21.499, 21.003, 20.502, 20.0, 19.498, 18.997, 18.501, 18.01,
+      17.528, 17.055, 16.594, 16.146, 15.713, 15.298, 14.901, 14.524, 14.168, 13.836,
+      13.528, 13.245, 12.99, 12.761, 12.562, 12.392, 12.251, 12.142, 12.063, 12.016,
+      12.0]
+
+    stiffness_profile_z:
+      [18.0, 18.017, 18.067, 18.151, 18.267, 18.416, 18.597, 18.809, 19.051, 19.323,
+      19.623, 19.951, 20.304, 20.681, 21.082, 21.504, 21.945, 22.405, 22.881, 23.371,
+      23.873, 24.386, 24.907, 25.435, 25.966, 26.5, 27.034, 27.565, 28.093, 28.614,
+      29.127, 29.629, 30.119, 30.595, 31.055, 31.496, 31.918, 32.319, 32.696, 33.049,
+      33.377, 33.677, 33.949, 34.191, 34.403, 34.584, 34.733, 34.849, 34.933, 34.983,
+      35.0, 34.983, 34.933, 34.849, 34.733, 34.584, 34.403, 34.191, 33.949, 33.677,
+      33.377, 33.049, 32.696, 32.319, 31.918, 31.496, 31.055, 30.595, 30.119, 29.629,
+      29.127, 28.614, 28.093, 27.565, 27.034, 26.5, 25.966, 25.435, 24.907, 24.386,
+      23.873, 23.371, 22.881, 22.405, 21.945, 21.504, 21.082, 20.681, 20.304, 19.951,
+      19.623, 19.323, 19.051, 18.809, 18.597, 18.416, 18.267, 18.151, 18.067, 18.017,
+      18.0]
+
+    damping_profile_x:
+      [1.2, 1.201, 1.204, 1.209, 1.216, 1.224, 1.235, 1.248, 1.262, 1.278,
+      1.295, 1.315, 1.336, 1.358, 1.381, 1.406, 1.432, 1.459, 1.487, 1.516,
+      1.545, 1.576, 1.606, 1.637, 1.669, 1.7, 1.731, 1.763, 1.794, 1.824,
+      1.855, 1.884, 1.913, 1.941, 1.968, 1.994, 2.019, 2.042, 2.064, 2.085,
+      2.105, 2.122, 2.138, 2.152, 2.165, 2.176, 2.184, 2.191, 2.196, 2.199,
+      2.2, 2.199, 2.196, 2.191, 2.184, 2.176, 2.165, 2.152, 2.138, 2.122,
+      2.105, 2.085, 2.064, 2.042, 2.019, 1.994, 1.968, 1.941, 1.913, 1.884,
+      1.855, 1.824, 1.794, 1.763, 1.731, 1.7, 1.669, 1.637, 1.606, 1.576,
+      1.545, 1.516, 1.487, 1.459, 1.432, 1.406, 1.381, 1.358, 1.336, 1.315,
+      1.295, 1.278, 1.262, 1.248, 1.235, 1.224, 1.216, 1.209, 1.204, 1.201,
+      1.2]
+
+    damping_profile_y:
+      [1.2, 1.201, 1.203, 1.207, 1.213, 1.22, 1.228, 1.238, 1.249, 1.262,
+      1.276, 1.292, 1.308, 1.326, 1.345, 1.365, 1.386, 1.407, 1.43, 1.453,
+      1.476, 1.501, 1.525, 1.55, 1.575, 1.6, 1.625, 1.65, 1.675, 1.699,
+      1.724, 1.747, 1.77, 1.793, 1.814, 1.835, 1.855, 1.874, 1.892, 1.908,
+      1.924, 1.938, 1.951, 1.962, 1.972, 1.98, 1.987, 1.993, 1.997, 1.999,
+      2.0, 1.999, 1.997, 1.993, 1.987, 1.98, 1.972, 1.962, 1.951, 1.938,
+      1.924, 1.908, 1.892, 1.874, 1.855, 1.835, 1.814, 1.793, 1.77, 1.747,
+      1.724, 1.699, 1.675, 1.65, 1.625, 1.6, 1.575, 1.55, 1.525, 1.501,
+      1.476, 1.453, 1.43, 1.407, 1.386, 1.365, 1.345, 1.326, 1.308, 1.292,
+      1.276, 1.262, 1.249, 1.238, 1.228, 1.22, 1.213, 1.207, 1.203, 1.201,
+      1.2]
+
+    damping_profile_z:
+      [1.2, 1.201, 1.203, 1.207, 1.213, 1.22, 1.228, 1.238, 1.249, 1.262,
+      1.276, 1.292, 1.308, 1.326, 1.345, 1.365, 1.386, 1.407, 1.43, 1.453,
+      1.476, 1.501, 1.525, 1.55, 1.575, 1.6, 1.625, 1.65, 1.675, 1.699,
+      1.724, 1.747, 1.77, 1.793, 1.814, 1.835, 1.855, 1.874, 1.892, 1.908,
+      1.924, 1.938, 1.951, 1.962, 1.972, 1.98, 1.987, 1.993, 1.997, 1.999,
+      2.0, 1.999, 1.997, 1.993, 1.987, 1.98, 1.972, 1.962, 1.951, 1.938,
+      1.924, 1.908, 1.892, 1.874, 1.855, 1.835, 1.814, 1.793, 1.77, 1.747,
+      1.724, 1.699, 1.675, 1.65, 1.625, 1.6, 1.575, 1.55, 1.525, 1.501,
+      1.476, 1.453, 1.43, 1.407, 1.386, 1.365, 1.345, 1.326, 1.308, 1.292,
+      1.276, 1.262, 1.249, 1.238, 1.228, 1.22, 1.213, 1.207, 1.203, 1.201,
+      1.2]
+
+    # ── Safety / singularity ─────────────────────────────────
+    use_joint_space_trajectory: true
+    num_trajectory_samples: 100
+    min_manipulability_threshold: 0.01
+    dls_damping_factor: 0.1
+
+    # ── Joint-space homing / regularization ──────────────────
+    # During HOMING with use_joint_space_trajectory=true, the controller
+    # uses pure joint-space PD (not Cartesian impedance) to move to the
+    # first waypoint, preventing singularity traversal.
+    homing_joint_K: 25.0          # Nm/rad — PD gain during homing
+    homing_joint_D: 2.0           # Nms/rad — damping during homing
+    # During MOVE phases, a small joint-space tracking term keeps the
+    # actual joints near the IK-validated path.
+    trajectory_joint_reg_K: 15.0  # Nm/rad — regularization gain (increased for better tracking)
+    trajectory_joint_reg_D: 2.0   # Nms/rad — regularization damping
+
+    singularity_preferred_joints: [0.0, -0.8, 0.8, 0.5]
+    singularity_escape_K: 3.0
+    singularity_escape_D: 0.3
+    singularity_exit_hysteresis: 2.5
+
+    # ── Contact force estimator ──────────────────────────────
+    contact_force_filter_alpha: 0.02

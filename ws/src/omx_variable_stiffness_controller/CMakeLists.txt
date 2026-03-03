@@ -20,6 +20,10 @@ find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_kdl REQUIRED)
 find_package(tf2_eigen REQUIRED)
+# these are used by the launch tests
+# the two message packages are only required by the Python tests
+# (they provide request/response types and JointState messages), so defer
+# finding/linking them until BUILD_TESTING is enabled below.
 
 add_library(${PROJECT_NAME} SHARED
   src/omx_variable_stiffness_controller.cpp
@@ -78,5 +82,22 @@ install(FILES plugin.xml
 install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME}
 )
+
+# tests
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  # the python tests rely on xacro
+  find_package(xacro REQUIRED)
+  # message types only needed by the tests
+  find_package(sensor_msgs REQUIRED)
+  find_package(controller_manager_msgs REQUIRED)
+
+  ament_add_pytest_test(test_urdf_sim_plugin test/test_urdf_sim_plugin.py
+    TIMEOUT 30)
+  ament_add_pytest_test(test_controller_manager test/test_controller_manager.py
+    TIMEOUT 60)
+  ament_add_pytest_test(test_simulation_launch test/test_simulation_launch.py
+    TIMEOUT 120)
+endif()
 
 ament_package()

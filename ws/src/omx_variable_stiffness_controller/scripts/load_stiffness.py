@@ -74,14 +74,61 @@ class StiffnessLoader(Node):
         """Load stiffness/damping profiles from CSV file."""
         try:
             with open(self.csv_path, 'r') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    self.stiffness_x.append(float(row['Kx']))
-                    self.stiffness_y.append(float(row['Ky']))
-                    self.stiffness_z.append(float(row['Kz']))
-                    self.damping_x.append(float(row['Dx']))
-                    self.damping_y.append(float(row['Dy']))
-                    self.damping_z.append(float(row['Dz']))
+                # Read a sample to detect header presence
+                sample = f.read(2048)
+                f.seek(0)
+                try:
+                    has_header = csv.Sniffer().has_header(sample)
+                except Exception:
+                    has_header = False
+
+                if has_header:
+                    # Headered CSV: use DictReader and accept common header names
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        if not row:
+                            continue
+                        # Defensive: skip header-like rows if Sniffer mis-detected
+                        first_vals = [v for v in row.values() if v is not None]
+                        if first_vals and isinstance(first_vals[0], str) and first_vals[0].strip().lower() in ('s', 'time'):
+                            continue
+                        try:
+                            self.stiffness_x.append(float(row.get('Kx') or row.get('kx')))
+                            self.stiffness_y.append(float(row.get('Ky') or row.get('ky')))
+                            self.stiffness_z.append(float(row.get('Kz') or row.get('kz')))
+                            self.damping_x.append(float(row.get('Dx') or row.get('dx')))
+                            self.damping_y.append(float(row.get('Dy') or row.get('dy')))
+                            self.damping_z.append(float(row.get('Dz') or row.get('dz')))
+                        except (TypeError, ValueError):
+                            self.get_logger().warn(f'Skipping non-numeric CSV row: {row}')
+                            continue
+                else:
+                    # Headerless CSV: parse by position. Expect rows like:
+                    # s, Kx, Ky, Kz, Dx, Dy, Dz
+                    reader = csv.reader(f)
+                    for parts in reader:
+                        if not parts:
+                            continue
+                        # Allow commented lines
+                        first = parts[0].strip()
+                        if not first or first.startswith('#'):
+                            continue
+                        # Defensive: skip header rows like ['s','Kx','Ky',...]
+                        if first.lower() in ('s', 'time'):
+                            continue
+                        if len(parts) < 7:
+                            self.get_logger().warn(f'Ignoring malformed CSV row: {parts}')
+                            continue
+                        try:
+                            self.stiffness_x.append(float(parts[1]))
+                            self.stiffness_y.append(float(parts[2]))
+                            self.stiffness_z.append(float(parts[3]))
+                            self.damping_x.append(float(parts[4]))
+                            self.damping_y.append(float(parts[5]))
+                            self.damping_z.append(float(parts[6]))
+                        except ValueError:
+                            self.get_logger().warn(f'Skipping non-numeric CSV row: {parts}')
+                            continue
 
             self.get_logger().info(
                 f'Loaded {len(self.stiffness_x)} profile points from {self.csv_path}'
@@ -90,9 +137,6 @@ class StiffnessLoader(Node):
 
         except FileNotFoundError:
             self.get_logger().error(f'CSV file not found: {self.csv_path}')
-            return False
-        except KeyError as e:
-            self.get_logger().error(f'Missing column in CSV: {e}')
             return False
         except Exception as e:
             self.get_logger().error(f'Error loading CSV: {e}')

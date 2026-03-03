@@ -25,6 +25,7 @@ from launch.substitutions import (
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def detect_serial_ports():
@@ -94,7 +95,7 @@ def generate_launch_description():
     enable_logger = LaunchConfiguration('enable_logger')
 
     # Get URDF via xacro for both robots
-    urdf_robot1 = Command([
+    urdf_robot1 = ParameterValue(Command([
         PathJoinSubstitution([FindExecutable(name='xacro')]), ' ',
         PathJoinSubstitution([
             FindPackageShare('open_manipulator_x_description'),
@@ -104,9 +105,9 @@ def generate_launch_description():
         ' use_fake_hardware:=false',
         ' port_name:=', robot1_port,
         ' prefix:=robot1_',
-    ])
+    ]), value_type=str)
 
-    urdf_robot2 = Command([
+    urdf_robot2 = ParameterValue(Command([
         PathJoinSubstitution([FindExecutable(name='xacro')]), ' ',
         PathJoinSubstitution([
             FindPackageShare('open_manipulator_x_description'),
@@ -116,7 +117,7 @@ def generate_launch_description():
         ' use_fake_hardware:=false',
         ' port_name:=', robot2_port,
         ' prefix:=robot2_',
-    ])
+    ]), value_type=str)
 
     # Controller configurations
     controller_config_robot1 = PathJoinSubstitution([
@@ -166,60 +167,75 @@ def generate_launch_description():
     robot1_controller_manager = Node(
         package='controller_manager',
         executable='ros2_control_node',
+        name='controller_manager',
         namespace='robot1',
         parameters=[
             {'robot_description': urdf_robot1, 'use_sim_time': False},
             controller_config_robot1
         ],
         output='both',
-        remappings=[
-            ('/robot1/controller_manager/robot_description', '/robot1/robot_description'),
-        ]
     )
 
     # Controller Manager for Robot 2
     robot2_controller_manager = Node(
         package='controller_manager',
         executable='ros2_control_node',
+        name='controller_manager',
         namespace='robot2',
         parameters=[
             {'robot_description': urdf_robot2, 'use_sim_time': False},
             controller_config_robot2
         ],
         output='both',
-        remappings=[
-            ('/robot2/controller_manager/robot_description', '/robot2/robot_description'),
-        ]
     )
 
-    # Load controllers for Robot 1
-    load_joint_state_broadcaster_robot1 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot1/controller_manager',
-             'joint_state_broadcaster'],
-        output='screen'
+    # Replace ExecuteProcess with spawner Nodes
+    load_joint_state_broadcaster_robot1 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'joint_state_broadcaster',
+            '--controller-manager', '/robot1/controller_manager',
+            '--param-file', controller_config_robot1,
+            '--set-state', 'active',
+        ],
+        output='screen',
     )
 
-    load_variable_stiffness_controller_robot1 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot1/controller_manager',
-             'robot1_variable_stiffness'],
-        output='screen'
+    load_variable_stiffness_controller_robot1 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'robot1_variable_stiffness',
+            '--controller-manager', '/robot1/controller_manager',
+            '--param-file', controller_config_robot1,
+            '--set-state', 'active',
+        ],
+        output='screen',
     )
 
-    # Load controllers for Robot 2
-    load_joint_state_broadcaster_robot2 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot2/controller_manager',
-             'joint_state_broadcaster'],
-        output='screen'
+    load_joint_state_broadcaster_robot2 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'joint_state_broadcaster',
+            '--controller-manager', '/robot2/controller_manager',
+            '--param-file', controller_config_robot2,
+            '--set-state', 'active',
+        ],
+        output='screen',
     )
 
-    load_variable_stiffness_controller_robot2 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot2/controller_manager',
-             'robot2_variable_stiffness'],
-        output='screen'
+    load_variable_stiffness_controller_robot2 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'robot2_variable_stiffness',
+            '--controller-manager', '/robot2/controller_manager',
+            '--param-file', controller_config_robot2,
+            '--set-state', 'active',
+        ],
+        output='screen',
     )
 
     # Delay controller loading
