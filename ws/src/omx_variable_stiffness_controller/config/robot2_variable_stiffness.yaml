@@ -21,29 +21,57 @@
       - robot2_joint2
       - robot2_joint3
       - robot2_joint4
+
+    state_interfaces:
+      - position
+      - velocity
+      - effort
+    command_interfaces:
+      - effort
+
     root_link: world
     tip_link: robot2_link5
     robot_description_node: /robot2/robot_state_publisher
     torque_scale: 200.0
 
-    # Robot 2 trajectory timing parameters (can be different from Robot 1)
-    homing_duration: 5.0
-    move_duration: 12.0      # Different timing from robot1
-    wait_duration: 2.0
+    # Robot 2 trajectory timing parameters
+    homing_duration: 8.0
+    move_duration: 15.0
+    wait_duration: 3.0
     max_rise_rate: 50.0
 
     # Robot 2 Cartesian waypoints [x, y, z] in meters
-    # Configure for right arm workspace (mirrored or independent trajectory)
-    start_position: [0.20, -0.05, 0.15]
-    end_position: [0.25, -0.05, 0.20]
-    target_orientation: [0.0, 0.0, 0.0]
+    start_position: [0.30, -0.02, 0.10]
+    end_position: [0.14, -0.02, 0.10]
+    target_orientation: [0.0, 0.5, 0.0]
 
-    # Robot 2 Stiffness parameters (can be different stiffness characteristics)
+    # Robot 2 Stiffness parameters
     # HARDWARE LIMITS: Max stiffness = 65 N/m, Max damping = 3 Ns/m
     stiffness_homing: [50.0, 50.0, 50.0]
     stiffness_rot: [15.0, 15.0, 15.0]
     damping_rot: [0.8, 0.8, 0.8]
-    damping_default: [2.5, 2.5, 2.5]
+    damping_default: [3.0, 3.0, 3.0]
+
+    # Safety / singularity
+    use_joint_space_trajectory: true
+    num_trajectory_samples: 100
+    min_manipulability_threshold: 0.01
+    dls_damping_factor: 0.1
+    homing_joint_K: 25.0
+    homing_joint_D: 2.0
+    trajectory_joint_reg_K: 15.0
+    trajectory_joint_reg_D: 2.0
+    singularity_preferred_joints: [0.0, -0.8, 0.8, 0.5]
+    singularity_escape_K: 3.0
+    singularity_escape_D: 0.3
+    singularity_exit_hysteresis: 2.5
+
+    # Waypoint deviation
+    waypoint_blend_duration: 2.0
+    deviation_publish_threshold: 0.01
+
+    # Contact force estimator
+    contact_force_filter_alpha: 0.02
 
     # Robot 2 stiffness/damping profiles (independent from robot1)
     stiffness_profile_x: []
@@ -60,21 +88,42 @@
       - robot2_joint2
       - robot2_joint3
       - robot2_joint4
+    state_interfaces:
+      - position
+      - velocity
+      - effort
+    command_interfaces:
+      - effort
     root_link: world
     tip_link: robot2_link5
     robot_description_node: /robot2/robot_state_publisher
     torque_scale: 200.0
-    homing_duration: 5.0
-    move_duration: 12.0
-    wait_duration: 2.0
+    homing_duration: 8.0
+    move_duration: 15.0
+    wait_duration: 3.0
     max_rise_rate: 50.0
-    start_position: [0.20, -0.05, 0.15]
-    end_position: [0.25, -0.05, 0.20]
-    target_orientation: [0.0, 0.0, 0.0]
+    start_position: [0.30, -0.02, 0.10]
+    end_position: [0.14, -0.02, 0.10]
+    target_orientation: [0.0, 0.5, 0.0]
     stiffness_homing: [50.0, 50.0, 50.0]
     stiffness_rot: [15.0, 15.0, 15.0]
     damping_rot: [0.8, 0.8, 0.8]
-    damping_default: [2.5, 2.5, 2.5]
+    damping_default: [3.0, 3.0, 3.0]
+    use_joint_space_trajectory: true
+    num_trajectory_samples: 100
+    min_manipulability_threshold: 0.01
+    dls_damping_factor: 0.1
+    homing_joint_K: 25.0
+    homing_joint_D: 2.0
+    trajectory_joint_reg_K: 15.0
+    trajectory_joint_reg_D: 2.0
+    singularity_preferred_joints: [0.0, -0.8, 0.8, 0.5]
+    singularity_escape_K: 3.0
+    singularity_escape_D: 0.3
+    singularity_exit_hysteresis: 2.5
+    waypoint_blend_duration: 2.0
+    deviation_publish_threshold: 0.01
+    contact_force_filter_alpha: 0.02
     stiffness_profile_x: []
     stiffness_profile_y: []
     stiffness_profile_z: []
@@ -90,21 +139,42 @@
       - robot1_joint2
       - robot1_joint3
       - robot1_joint4
+    state_interfaces:
+      - position
+      - velocity
+      - effort
+    command_interfaces:
+      - effort
     root_link: world
     tip_link: robot1_link5
     robot_description_node: /robot1/robot_state_publisher
     torque_scale: 200.0
-    homing_duration: 5.0
-    move_duration: 10.0
-    wait_duration: 2.0
+    homing_duration: 8.0
+    move_duration: 15.0
+    wait_duration: 3.0
     max_rise_rate: 50.0
-    start_position: [0.20, 0.05, 0.15]
-    end_position: [0.25, 0.05, 0.20]
-    target_orientation: [0.0, 0.0, 0.0]
+    start_position: [0.30, 0.02, 0.10]
+    end_position: [0.14, 0.02, 0.10]
+    target_orientation: [0.0, 0.5, 0.0]
     stiffness_homing: [50.0, 50.0, 50.0]
     stiffness_rot: [15.0, 15.0, 15.0]
     damping_rot: [0.8, 0.8, 0.8]
-    damping_default: [2.5, 2.5, 2.5]
+    damping_default: [3.0, 3.0, 3.0]
+    use_joint_space_trajectory: true
+    num_trajectory_samples: 100
+    min_manipulability_threshold: 0.01
+    dls_damping_factor: 0.1
+    homing_joint_K: 25.0
+    homing_joint_D: 2.0
+    trajectory_joint_reg_K: 15.0
+    trajectory_joint_reg_D: 2.0
+    singularity_preferred_joints: [0.0, -0.8, 0.8, 0.5]
+    singularity_escape_K: 3.0
+    singularity_escape_D: 0.3
+    singularity_exit_hysteresis: 2.5
+    waypoint_blend_duration: 2.0
+    deviation_publish_threshold: 0.01
+    contact_force_filter_alpha: 0.02
     stiffness_profile_x: []
     stiffness_profile_y: []
     stiffness_profile_z: []
@@ -119,21 +189,42 @@
       - robot1_joint2
       - robot1_joint3
       - robot1_joint4
+    state_interfaces:
+      - position
+      - velocity
+      - effort
+    command_interfaces:
+      - effort
     root_link: world
     tip_link: robot1_link5
     robot_description_node: /robot1/robot_state_publisher
     torque_scale: 200.0
-    homing_duration: 5.0
-    move_duration: 10.0
-    wait_duration: 2.0
+    homing_duration: 8.0
+    move_duration: 15.0
+    wait_duration: 3.0
     max_rise_rate: 50.0
-    start_position: [0.20, 0.05, 0.15]
-    end_position: [0.25, 0.05, 0.20]
-    target_orientation: [0.0, 0.0, 0.0]
+    start_position: [0.30, 0.02, 0.10]
+    end_position: [0.14, 0.02, 0.10]
+    target_orientation: [0.0, 0.5, 0.0]
     stiffness_homing: [50.0, 50.0, 50.0]
     stiffness_rot: [15.0, 15.0, 15.0]
     damping_rot: [0.8, 0.8, 0.8]
-    damping_default: [2.5, 2.5, 2.5]
+    damping_default: [3.0, 3.0, 3.0]
+    use_joint_space_trajectory: true
+    num_trajectory_samples: 100
+    min_manipulability_threshold: 0.01
+    dls_damping_factor: 0.1
+    homing_joint_K: 25.0
+    homing_joint_D: 2.0
+    trajectory_joint_reg_K: 15.0
+    trajectory_joint_reg_D: 2.0
+    singularity_preferred_joints: [0.0, -0.8, 0.8, 0.5]
+    singularity_escape_K: 3.0
+    singularity_escape_D: 0.3
+    singularity_exit_hysteresis: 2.5
+    waypoint_blend_duration: 2.0
+    deviation_publish_threshold: 0.01
+    contact_force_filter_alpha: 0.02
     stiffness_profile_x: []
     stiffness_profile_y: []
     stiffness_profile_z: []

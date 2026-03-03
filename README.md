@@ -33,14 +33,13 @@ The robots can be controlled via:
 - **Headless Tests**: ✅ **PASSING** — Unit and launch tests using `launch_gazebo:=false` (fake‑hardware) pass in the devcontainer (Feb 2026).
 - **Real Gazebo**: ⚠️ **NOT RUN** — Full Gazebo integration tests require a host with `gzserver` and `gazebo_ros2_control`; these are skipped inside the devcontainer and in CI by default.
 
-## Latest (2026-03-03)
+## Latest (2026-03-04)
 
-- **Singularity-safe IK pipeline**: replaced KDL LMA with a custom position-only Jacobian pseudo-inverse IK (damped, 3×4) plus null-space bias toward a seed configuration. Backward-walk seeding (end→start) ensures the solver stays in the correct elbow-down arm basin.
-- **Joint-space homing**: new JOINT_SPACE_HOMING torque mode uses PD control with cosine interpolation from the spawn pose to the first waypoint, avoiding Cartesian impedance flips through x<0.
-- **Joint-space regularization**: during MOVE/WAIT states an additive `K*(q_planned−q) − D*q̇` term keeps the arm near the planned configuration, improving z-tracking by ~40%.
-- **Gazebo verified** (Mar 2026): controller activates, state machine cycles (HOMING → MOVE_FORWARD → WAIT_AT_END → MOVE_RETURN → WAIT_AT_START), EE x always > 0, z-tracking error 0.03–0.08 m (expected for compliant stiffness profile).
-- **Waypoint deviation tested** (Mar 2026): 6 bugs fixed (topic mismatch, stuck waypoint, rate limiting, etc.); offset & absolute modes verified in Gazebo — blend activates, completes in 2 s, and deactivates correctly.
-- Previous (2026-03-02): event-driven spawner sequencing, JJT/LDLT fallback fix, `gazebo_variable_stiffness.yaml` with 101-point bell profile.
+- **Hardware YAML audit & fix**: Completely rewrote single-hardware `variable_stiffness_controller.yaml` — fixed broken bare namespace (was invisible to controller), flipped `use_sim_time` to `false`, set `torque_scale: 200.0` and `update_rate: 500` for real servos, added all safety params (homing, regularization, singularity, waypoint deviation, contact force filter). Removed ~230 lines of commented-out cruft.
+- **Dual-hardware YAML sync**: Updated all 6 cross-namespace blocks in `robot1_variable_stiffness.yaml` and `robot2_variable_stiffness.yaml` with `state_interfaces`, `command_interfaces`, Gazebo-tested trajectory values, and every safety parameter.
+- **Single-hardware launch fix**: Added `--set-state active` to both spawner nodes in `variable_stiffness_control.launch.py`.
+- **EE contact force sensor** (`tools/ee_force_sensor.py`): Standalone ROS 2 node that subscribes to the controller's `~/contact_wrench` + `~/contact_valid`, applies deadzone filtering, and republishes as `~/ee_force` (Vector3Stamped) + `~/ee_force_magnitude` (Float64) at configurable rate. Designed as the input for a future force-feedback loop. Supports CSV logging.
+- Previous: singularity-safe IK, joint-space homing/regularization, waypoint deviation (6 bugs fixed), Gazebo verification.
 
 ## Overview
 
@@ -85,6 +84,17 @@ You can run:
 - **Status: ✅ Gazebo-tested (Mar 2026)** — offset and absolute waypoints
   verified; blend activates, completes, and deactivates correctly;
   `publish_waypoint.py` helper script functional.
+
+### EE Contact Force Sensing
+
+- The controller publishes a deflection-based contact force estimate on
+  `~/contact_wrench` (WrenchStamped) and a validity flag on `~/contact_valid`
+  (Bool, false during singularity escape).
+- `tools/ee_force_sensor.py` subscribes to these and republishes:
+  - `~/ee_force` (Vector3Stamped) — filtered xyz force in root frame
+  - `~/ee_force_magnitude` (Float64) — scalar for easy thresholding
+- Supports configurable namespace/controller, publish rate, deadzone, and CSV logging.
+- Designed as the sensor input for a future force→waypoint feedback loop.
 
 ### Safety Features (Variable Stiffness Controller)
 ✅ **Pre-trajectory IK Validation**: Validates entire trajectory via position-only Jacobian pseudo-inverse IK (backward-walk seeding) before execution
