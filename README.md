@@ -39,6 +39,7 @@ The robots can be controlled via:
 - **Joint-space homing**: new JOINT_SPACE_HOMING torque mode uses PD control with cosine interpolation from the spawn pose to the first waypoint, avoiding Cartesian impedance flips through x<0.
 - **Joint-space regularization**: during MOVE/WAIT states an additive `K*(q_planned−q) − D*q̇` term keeps the arm near the planned configuration, improving z-tracking by ~40%.
 - **Gazebo verified** (Mar 2026): controller activates, state machine cycles (HOMING → MOVE_FORWARD → WAIT_AT_END → MOVE_RETURN → WAIT_AT_START), EE x always > 0, z-tracking error 0.03–0.08 m (expected for compliant stiffness profile).
+- **Waypoint deviation tested** (Mar 2026): 6 bugs fixed (topic mismatch, stuck waypoint, rate limiting, etc.); offset & absolute modes verified in Gazebo — blend activates, completes in 2 s, and deactivates correctly.
 - Previous (2026-03-02): event-driven spawner sequencing, JJT/LDLT fallback fix, `gazebo_variable_stiffness.yaml` with 101-point bell profile.
 
 ## Overview
@@ -69,21 +70,21 @@ You can run:
 🔧 Variable Cartesian Impedance Controller with time-varying stiffness profiles
 🔧 Hardware safety limits (stiffness ≤65 N/m, damping ≤3 Ns/m for Robotis servos)
 🔧 Manipulability metrics publishing (singular values, condition number, σ_min)
-🔧 Runtime waypoint command interface (offset + absolute modes, waypoint queue)
+✅ Runtime waypoint deviation (offset + absolute modes, cosine blend, auto-return to trajectory)
 🔧 Support for both hardware and Gazebo simulation
 
-### Experimental Behavior (Temporary Deviated Waypoints)
+### Runtime Waypoint Deviation (Tested in Gazebo)
 
-- The controller now supports a temporary-deviation mode: when an external
-  runtime waypoint is published the controller will blend to the requested
-  offset/absolute pose using temporary interpolant waypoints, hold briefly,
-  and then interpolate back to rejoin the original configured trajectory.
-- Purpose: let transient sensor inputs or operator nudges be applied without
-  permanently altering the planned trajectory — the robot keeps aiming at
-  the configured path and returns automatically.
-- Status: UNTESTED — implemented in the controller code and exercised with
-  a small publish/listen helper, but this behavior has not been fully
-  validated in Gazebo GUI or on hardware. Validate carefully before use.
+- The controller supports runtime waypoint deviation: an external node publishes a
+  `PoseStamped` to `~/waypoint_command` (offset or absolute) and the controller
+  cosine-blends to the target over `waypoint_blend_duration` seconds, then
+  automatically returns to the normal trajectory.
+- When the EE deviates from the planned position by more than
+  `deviation_publish_threshold` (default 0.01 m) the controller publishes the
+  actual joint state on `~/deviated_waypoint` (rate-limited to ~2 Hz).
+- **Status: ✅ Gazebo-tested (Mar 2026)** — offset and absolute waypoints
+  verified; blend activates, completes, and deactivates correctly;
+  `publish_waypoint.py` helper script functional.
 
 ### Safety Features (Variable Stiffness Controller)
 ✅ **Pre-trajectory IK Validation**: Validates entire trajectory via position-only Jacobian pseudo-inverse IK (backward-walk seeding) before execution
