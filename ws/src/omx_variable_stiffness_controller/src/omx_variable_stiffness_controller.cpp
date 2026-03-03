@@ -131,6 +131,9 @@ OmxVariableStiffnessController::on_init()
   // deviated waypoint for external tools (GUI) to consume.
   auto_declare<double>("deviation_publish_threshold", 0.01);
 
+  // Waypoint blending duration (seconds)
+  auto_declare<double>("waypoint_blend_duration", 2.0);
+
   // Joint-space homing / regularization (prevents singularity traversal)
   auto_declare<double>("homing_joint_K", 15.0);
   auto_declare<double>("homing_joint_D", 2.0);
@@ -555,6 +558,9 @@ OmxVariableStiffnessController::on_configure(const rclcpp_lifecycle::State &)
   if (node->get_parameter("deviation_publish_threshold", deviation_publish_threshold_)) {
     RCLCPP_INFO(node->get_logger(), "Deviation publish threshold: %.4f m", deviation_publish_threshold_);
   }
+  if (node->get_parameter("waypoint_blend_duration", waypoint_blend_duration_)) {
+    RCLCPP_INFO(node->get_logger(), "Waypoint blend duration: %.2f s", waypoint_blend_duration_);
+  }
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -723,6 +729,7 @@ OmxVariableStiffnessController::on_activate(const rclcpp_lifecycle::State &)
   D_trans_current_ = Kd_lin_default_;
 
   // Start state machine
+  clear_waypoints_();  // discard any leftover waypoints from prior activation
   current_state_   = State::HOMING;
   move_start_time_ = node->get_clock()->now().seconds();
 
@@ -796,6 +803,7 @@ OmxVariableStiffnessController::on_deactivate(const rclcpp_lifecycle::State &)
   for (auto & ci : command_interfaces_) {
     ci.set_value(0.0);
   }
+  clear_waypoints_();  // discard pending waypoints on stop
   RCLCPP_INFO(get_node()->get_logger(), "[STOPPING] Controller stopped.");
   return controller_interface::CallbackReturn::SUCCESS;
 }
@@ -1074,14 +1082,15 @@ OmxVariableStiffnessController::update(
   // Publish deviated waypoint (joint state) when EE position deviates
   // from desired by more than the configured threshold. This allows the
   // GUI or other tools to capture the actual configuration at the moment
-  // of deviation.
+  // of deviation. Rate-limited to ~10 Hz (every 50th cycle at 500 Hz).
   {
     KDL::Vector err = KDL::Vector(
       x_c_frame.p.x() - x_d_frame_.p.x(),
       x_c_frame.p.y() - x_d_frame_.p.y(),
       x_c_frame.p.z() - x_d_frame_.p.z());
     double err_norm = std::sqrt(err.x() * err.x() + err.y() * err.y() + err.z() * err.z());
-    if (err_norm > deviation_publish_threshold_ && deviated_waypoint_pub_) {
+    if (err_norm > deviation_publish_threshold_ && deviated_waypoint_pub_ &&
+        (debug_counter_ % 50 == 0)) {
       sensor_msgs::msg::JointState js;
       js.header.stamp = node->get_clock()->now();
       js.name = std::vector<std::string>(joints_.begin(), joints_.end());
@@ -1672,7 +1681,11 @@ KDL::Vector OmxVariableStiffnessController::process_waypoints_(
   if (blend_progress >= 1.0) {
     std::lock_guard<std::mutex> lock(waypoint_mutex_);
     if (waypoint_queue_.empty()) {
-      RCLCPP_INFO(get_node()->get_logger(), "[WAYPOINT] Reached waypoint, holding position");
+      RCLCPP_INFO(get_node()->get_logger(),
+        "[WAYPOINT] Reached waypoint, returning to trajectory");
+      has_active_waypoint_  = false;
+      waypoint_mode_active_ = false;
+      return trajectory_target;
     } else {
       current_waypoint_    = waypoint_queue_.front();
       waypoint_queue_.pop();

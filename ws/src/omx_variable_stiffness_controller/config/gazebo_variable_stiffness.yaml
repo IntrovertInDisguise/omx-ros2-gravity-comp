@@ -169,5 +169,9 @@
     singularity_escape_D: 0.3
     singularity_exit_hysteresis: 2.5
 
+    # ── Waypoint deviation ───────────────────────────────────
+    waypoint_blend_duration: 2.0    # seconds to cosine-blend toward waypoint
+    deviation_publish_threshold: 0.01  # meters — publish deviated joint state above this
+
     # ── Contact force estimator ──────────────────────────────
     contact_force_filter_alpha: 0.02

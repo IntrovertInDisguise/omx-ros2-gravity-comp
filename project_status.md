@@ -267,21 +267,27 @@ The script appends a timestamped section to this file containing:
 
 This provides a reproducible changelog of what produced a working state.
 
-## Note (2026-03-03): Temporary deviation handling (experimental, untested)
+## Note (2026-03-03): Waypoint Deviation — ✅ Gazebo-Tested
 
-- Implemented a temporary interpolant waypoint behavior in the
-  `omx_variable_stiffness_controller`. When a runtime waypoint command is
-  received the controller will briefly blend to the commanded (offset or
-  absolute) pose via a short set of interpolant waypoints and then rejoin
-  the configured trajectory. This preserves the configured trajectory time
-  base and ensures the robot attempts to return to the main path after the
-  temporary deviation.
+Runtime waypoint deviation feature reviewed, fixed (6 bugs), and verified in
+Gazebo headless simulation.
 
-- Status: UNTESTED — code changes are present in the workspace and a
-  listener/publisher helper was used to exercise the flow locally, but the
-  temporary-interpolant behavior needs systematic verification in Gazebo
-  (GUI) and on hardware. Use caution: this is experimental and must be
-  validated before relying on it for autonomous operations.
+### Bugs Fixed
+| # | Severity | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | Critical | `publish_waypoint.py` published to wrong topic (`/omx/waypoint_command`) | Corrected to `/omx/variable_stiffness_controller/waypoint_command` |
+| 2 | Critical | Waypoint never deactivated after reaching target (held forever) | Set `has_active_waypoint_=false` when queue empty |
+| 3 | Medium | `clear_waypoints_()` defined but never called | Wired to `on_activate` and `on_deactivate` |
+| 4 | Medium | `waypoint_blend_duration` hardcoded (not configurable) | Added `auto_declare` + `get_parameter` + YAML entry |
+| 5 | Low | Deviated waypoint published every control cycle (~500 Hz) | Rate-limited via `debug_counter_ % 50` (~2 Hz at 100 Hz sim) |
+| 6 | Low | `deviation_publish_threshold` and `waypoint_blend_duration` missing from YAML | Added to `gazebo_variable_stiffness.yaml` |
+
+### Test Results (Gazebo headless, Mar 2026)
+- **Topics**: `~/waypoint_command`, `~/waypoint_active`, `~/deviated_waypoint` all live
+- **Offset waypoint** (+4 cm z): `waypoint_active` → true for ~2 s, then false (correct deactivation)
+- **Absolute waypoint** [0.25, 0.02, 0.15]: activated, blended, deactivated correctly
+- **Deviation publisher**: ~2 Hz rate (rate-limiting confirmed via `ros2 topic hz`)
+- **Auto-return**: after waypoint completes, EE returns to normal trajectory path
 
 
 
@@ -336,7 +342,6 @@ and end `[0.14, 0.02, 0.10]` both having x>0.
 
 ### Remaining Work
 - `use_joint_space_trajectory: false` — not yet tested
-- Waypoint deviation feature — not yet tested
 - Dual Gazebo mode — not yet tested
 - Hardware deployment — awaiting physical robot
 

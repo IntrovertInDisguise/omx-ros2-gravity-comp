@@ -9,7 +9,7 @@ def main():
     x = float(sys.argv[3]) if len(sys.argv)>3 else 0.03
     y = float(sys.argv[4]) if len(sys.argv)>4 else 0.0
     z = float(sys.argv[5]) if len(sys.argv)>5 else 0.0
-    topic = '/omx/waypoint_command'
+    topic = '/omx/variable_stiffness_controller/waypoint_command'
     time.sleep(delay)
     rclpy.init()
     node = rclpy.create_node('wp_pub')
