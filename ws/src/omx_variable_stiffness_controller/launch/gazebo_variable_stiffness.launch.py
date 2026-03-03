@@ -17,10 +17,12 @@ from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
     IncludeLaunchDescription,
+    RegisterEventHandler,
     SetEnvironmentVariable,
     TimerAction,
 )
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     Command,
@@ -31,6 +33,8 @@ from launch.substitutions import (
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch.substitutions import EnvironmentVariable
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -65,6 +69,21 @@ def generate_launch_description():
             default_value='true',
             description='Whether to start Gazebo GUI (gzclient)'
         ),
+        DeclareLaunchArgument(
+            'launch_gazebo',
+            default_value='true',
+            description='Whether to start gzserver (use false for headless/test)'
+        ),
+        DeclareLaunchArgument(
+            'spawn_delay',
+            default_value='5.0',
+            description='Delay (s) before spawning the robot in Gazebo'
+        ),
+        DeclareLaunchArgument(
+            'stiffness_loader_delay',
+            default_value='5.0',
+            description='Delay (s) after controllers are active before starting the stiffness loader'
+        ),
     ]
 
     start_rviz = LaunchConfiguration('start_rviz')
@@ -73,22 +92,46 @@ def generate_launch_description():
     world = LaunchConfiguration('world')
     robot_namespace = LaunchConfiguration('robot_namespace')
     gui = LaunchConfiguration('gui')
+    launch_gazebo = LaunchConfiguration('launch_gazebo')
 
-    # Controller configuration file
+    # Controller configuration file (Gazebo-specific: includes both
+    # controller_manager type declarations for the Gazebo plugin and
+    # controller-specific parameters for the spawner's --param-file).
     controller_config = PathJoinSubstitution([
         FindPackageShare('omx_variable_stiffness_controller'),
-        'config', 'variable_stiffness_controller.yaml'
+        'config', 'gazebo_variable_stiffness.yaml'
     ])
 
-    # Generate URDF from xacro (simulation mode)
+    # check for the gazebo_ros2_control plugin library once at
+    # launch‑file evaluation time.  This avoids crashing the controller
+    # manager when the package isn’t installed (e.g. a lightweight devcontainer).
+    import os
+    _PLUGIN_AVAILABLE = os.path.exists(
+        '/opt/ros/humble/lib/libgazebo_ros2_control.so'
+    )
+
+    # Generate URDF from xacro.  Use simulation mode only when Gazebo is
+    # actually launched *and* the plugin is available; otherwise fall back to
+    # fake hardware so the controller_manager can start peacefully.  Xacro
+    # expects unquoted true/false for boolean args, hence the PythonExpression.
+    # Evaluate to a valid Python boolean expression string. Use simple
+    # boolean operators so PythonExpression doesn't require an 'else'.
+    sim_arg = PythonExpression([
+        "('", launch_gazebo, "' == 'true') and ",
+        ('True' if _PLUGIN_AVAILABLE else 'False'),
+    ])
+    fake_hw = PythonExpression([
+        "('", launch_gazebo, "' == 'false') or ",
+        ('False' if _PLUGIN_AVAILABLE else 'True'),
+    ])
     urdf = Command([
         PathJoinSubstitution([FindExecutable(name='xacro')]), ' ',
         PathJoinSubstitution([
             FindPackageShare('open_manipulator_x_description'),
             'urdf', 'open_manipulator_x_robot.urdf.xacro'
         ]),
-        ' use_sim:=true',
-        ' use_fake_hardware:=false',
+        ' use_sim:=', sim_arg,
+        ' use_fake_hardware:=', fake_hw,
         ' controller_config:=', controller_config,
         ' robot_namespace:=', robot_namespace,
     ])
@@ -99,7 +142,61 @@ def generate_launch_description():
         'worlds', 'empty_world.model'
     ])
 
-    # Start Gazebo server
+    # Robot state publisher
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        namespace=robot_namespace,
+        parameters=[{
+            'robot_description': ParameterValue(urdf, value_type=str),
+            'use_sim_time': True,
+        }],
+        output='screen'
+    )
+
+    # Decide whether to launch a standalone controller_manager node.
+    # When running under Gazebo with the ros2_control plugin the plugin
+    # will create and own its own controller_manager, so starting a second
+    # ros2_control_node leads to the pluginlib mismatch we observed
+    # (plugin registered under GazeboSystemInterface, not
+    # hardware_interface::SystemInterface).  Instead only start a
+    # controller_manager if we are *not* using the Gazebo plugin.
+    #
+    # sim_arg is True whenever the URDF was rendered for simulation, which
+    # implies use_sim==true and the plugin library existing.  _PLUGIN_AVAILABLE
+    # is evaluated at launch evaluation time.
+    start_cmgr = PythonExpression([
+        "not (", sim_arg, " and ",
+        'True' if _PLUGIN_AVAILABLE else 'False',
+        ")"
+    ])
+
+    ros2_control_node = Node(
+        package='controller_manager',
+        executable='ros2_control_node',
+        name='controller_manager',
+        namespace=robot_namespace,
+        parameters=[
+            controller_config,
+            {
+                'robot_description': ParameterValue(urdf, value_type=str),
+                'use_sim_time': True,
+            },
+        ],
+        output='screen',
+        condition=IfCondition(start_cmgr),
+    )
+
+    # Ensure Gazebo can find ROS plugin libraries when it starts.
+    plugin_path = SetEnvironmentVariable(
+        'GAZEBO_PLUGIN_PATH',
+        [
+            '/opt/ros/humble/lib:',
+            EnvironmentVariable('GAZEBO_PLUGIN_PATH', default_value='')
+        ]
+    )
+
+    # Start Gazebo server (optional)
     gazebo_server = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -107,6 +204,7 @@ def generate_launch_description():
                 'launch', 'gzserver.launch.py'
             ])
         ]),
+        condition=IfCondition(launch_gazebo),
         launch_arguments={
             'world': PythonExpression([
                 "'", world, "' if '", world, "' != '' else '", default_world, "'"
@@ -126,18 +224,6 @@ def generate_launch_description():
         condition=IfCondition(gui),
     )
 
-    # Robot state publisher
-    robot_state_publisher = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        namespace=robot_namespace,
-        parameters=[{
-            'robot_description': urdf,
-            'use_sim_time': True,
-        }],
-        output='screen'
-    )
-
     # Spawn entity in Gazebo
     spawn_entity = Node(
         package='gazebo_ros',
@@ -152,35 +238,130 @@ def generate_launch_description():
         output='screen',
     )
 
-    # Delay spawning until Gazebo is ready (needs time for GazeboRosFactory)
+    # Instead of firing the spawner directly after a fixed delay, wait
+    # until the Gazebo `/spawn_entity` service is available. This polls
+    # `ros2 service list` and only returns once the service is present,
+    # making the spawn robust across slow startup times.
+    wait_for_spawn = ExecuteProcess(
+        cmd=['bash', '-lc',
+             "until ros2 service list 2>/dev/null | grep -q '/spawn_entity'; do sleep 0.5; done"],
+        output='screen',
+    )
+
     delayed_spawn = TimerAction(
-        period=8.0,
-        actions=[spawn_entity],
+        period=LaunchConfiguration('spawn_delay'),
+        actions=[wait_for_spawn],
+        condition=IfCondition(launch_gazebo),
     )
 
-    # Load joint state broadcaster (after spawn)
-    load_jsb = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', ['/', robot_namespace, '/controller_manager'],
-             'joint_state_broadcaster'],
-        output='screen'
+    # Start the actual spawn only after the wait helper finishes
+    start_spawn_after_wait = RegisterEventHandler(
+        OnProcessExit(
+            target_action=wait_for_spawn,
+            on_exit=[spawn_entity],
+        ),
+        condition=IfCondition(launch_gazebo),
     )
 
-    # Load variable stiffness controller
-    load_vs_controller = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', ['/', robot_namespace, '/controller_manager'],
-             'variable_stiffness_controller'],
-        output='screen'
+    # ── Controller spawners ─────────────────────────────────────────────
+    #
+    # Instead of fragile fixed-delay TimerActions, we use event-driven
+    # sequencing so the launch is fully automatic regardless of how long
+    # Gazebo takes to start:
+    #
+    #   spawn_entity exits → load JSB → JSB spawner exits → load VS ctrl
+    #
+    # Each spawner uses --controller-manager-timeout 120 so it patiently
+    # waits for the Gazebo-internal controller_manager to appear.
+    # ──────────────────────────────────────────────────────────────────
+
+    _CM_TIMEOUT = '120'  # seconds to wait for controller_manager
+
+    # --- Gazebo path: event-driven after spawn_entity ---
+    load_jsb = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'joint_state_broadcaster',
+            '--controller-manager', ['/', robot_namespace, '/controller_manager'],
+            '--param-file', controller_config,
+            '--controller-manager-timeout', _CM_TIMEOUT,
+        ],
+        output='screen',
     )
 
-    # Delay controller loading to ensure Gazebo + spawn are ready
-    delay_controllers = TimerAction(
-        period=15.0,
-        actions=[load_jsb, load_vs_controller],
+    load_vs_controller = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'variable_stiffness_controller',
+            '--controller-manager', ['/', robot_namespace, '/controller_manager'],
+            '--param-file', controller_config,
+            '--controller-manager-timeout', _CM_TIMEOUT,
+        ],
+        output='screen',
     )
 
-    # Stiffness profile loader node (optional)
+    # Chain: spawn_entity finishes → start JSB spawner
+    start_jsb_after_spawn = RegisterEventHandler(
+        OnProcessExit(
+            target_action=spawn_entity,
+            on_exit=[load_jsb],
+        ),
+        condition=IfCondition(launch_gazebo),
+    )
+
+    # Chain: JSB spawner finishes → start VS controller spawner
+    start_vs_after_jsb = RegisterEventHandler(
+        OnProcessExit(
+            target_action=load_jsb,
+            on_exit=[load_vs_controller],
+        ),
+    )
+
+    # --- Headless / fake-hardware path ---
+    load_jsb_headless = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'joint_state_broadcaster',
+            '--controller-manager', ['/', robot_namespace, '/controller_manager'],
+            '--param-file', controller_config,
+            '--controller-manager-timeout', '120',
+        ],
+        output='screen',
+    )
+
+    load_vs_controller_headless = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'variable_stiffness_controller',
+            '--controller-manager', ['/', robot_namespace, '/controller_manager'],
+            '--param-file', controller_config,
+            '--controller-manager-timeout', '120',
+        ],
+        output='screen',
+    )
+
+    # Headless: short fixed delay then event-chain
+    delay_controllers_headless = TimerAction(
+        period=3.0,
+        actions=[load_jsb_headless],
+        condition=UnlessCondition(launch_gazebo),
+    )
+
+    start_vs_headless_after_jsb = RegisterEventHandler(
+        OnProcessExit(
+            target_action=load_jsb_headless,
+            on_exit=[load_vs_controller_headless],
+        ),
+        condition=UnlessCondition(launch_gazebo),
+    )
+
+    # (previous activation helper removed)
+
+    # Stiffness profile loader node (optional) — starts after VS controller is up
     stiffness_loader = Node(
         package='omx_variable_stiffness_controller',
         executable='load_stiffness.py',
@@ -197,9 +378,17 @@ def generate_launch_description():
         ),
     )
 
-    delay_stiffness_loader = TimerAction(
-        period=8.0,
-        actions=[stiffness_loader],
+    # Start the stiffness loader after VS controller is active
+    start_stiffness_after_vs = RegisterEventHandler(
+        OnProcessExit(
+            target_action=load_vs_controller,
+            on_exit=[
+                TimerAction(
+                    period=LaunchConfiguration('stiffness_loader_delay'),
+                    actions=[stiffness_loader],
+                ),
+            ],
+        ),
     )
 
     # Data logger node (optional)
@@ -237,12 +426,23 @@ def generate_launch_description():
     return LaunchDescription([
         *declared_arguments,
         set_libgl_sw,
+        plugin_path,
+        # Core nodes
+        robot_state_publisher,
+        ros2_control_node,
+        # Gazebo
         gazebo_server,
         gazebo_client,
-        robot_state_publisher,
         delayed_spawn,
-        delay_controllers,
-        delay_stiffness_loader,
+        start_spawn_after_wait,
+        # Event-driven controller bringup (Gazebo path)
+        start_jsb_after_spawn,
+        start_vs_after_jsb,
+        # Event-driven controller bringup (headless path)
+        delay_controllers_headless,
+        start_vs_headless_after_jsb,
+        # Post-controller actions
+        start_stiffness_after_vs,
         delay_logger,
         rviz_node,
     ])

@@ -2,16 +2,16 @@
 
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="open_manipulator_x_system" params="name prefix port_name:=/dev/ttyUSB0 use_sim:=^|false use_fake_hardware:=^|false fake_sensor_commands:=^|false">
+  <xacro:macro name="open_manipulator_x_system" params="name prefix port_name:=/dev/ttyUSB0 use_sim:=false use_fake_hardware:=false fake_sensor_commands:=false">
 
     <ros2_control name="${name}" type="system">
 
-      <xacro:if value="$(arg use_sim)">
+      <xacro:if value="${use_sim}">
         <hardware>
           <plugin>gazebo_ros2_control/GazeboSystem</plugin>
         </hardware>
       </xacro:if>
-      <xacro:unless value="$(arg use_sim)">
+      <xacro:unless value="${use_sim}">
         <hardware>
           <xacro:if value="${use_fake_hardware}">
             <plugin>fake_components/GenericSystem</plugin>
@@ -22,7 +22,6 @@
             <plugin>dynamixel_hardware_interface/DynamixelHardware</plugin>
             <param name="port_name">${port_name}</param>
             <param name="baud_rate">1000000</param>
-            <param name="disable_torque_at_init">true</param>
             <param name="error_timeout_sec">0.2</param>
             <param name="dynamixel_model_folder">/param/dxl_model</param>
             <param name="number_of_joints">6</param>
@@ -63,7 +62,6 @@
       </xacro:unless>
 
       <joint name="${prefix}joint1">
-        <!-- <command_interface name="position"/> -->
         <command_interface name="effort"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -71,7 +69,6 @@
       </joint>
 
       <joint name="${prefix}joint2">
-        <!-- <command_interface name="position"/> -->
         <command_interface name="effort"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -79,7 +76,6 @@
 
       </joint>
       <joint name="${prefix}joint3">
-        <!-- <command_interface name="position"/> -->
         <command_interface name="effort"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -87,7 +83,6 @@
       </joint>
 
       <joint name="${prefix}joint4">
-        <!-- <command_interface name="position"/> -->
         <command_interface name="effort"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -110,17 +105,20 @@
         <state_interface name="effort"/>
       </joint>
 
-      <!-- Current Control Mode (Operating Mode = 0) for gravity compensation -->
       <gpio name="dxl1">
         <param name="type">dxl</param>
         <param name="ID">11</param>
-        <command_interface name="Goal Current"/>
+        <command_interface name="Goal Position"/>
         <state_interface name="Present Position"/>
         <state_interface name="Present Velocity"/>
         <state_interface name="Present Current"/>
         <state_interface name="Torque Enable"/>
         <state_interface name="Present Input Voltage"/>
-        <param name="Operating Mode">0</param>
+        <param name="Position P Gain">800</param>
+        <param name="Position I Gain">100</param>
+        <param name="Position D Gain">100</param>
+        <param name="Profile Velocity">200</param>
+        <param name="Profile Acceleration">50</param>
         <param name="Drive Mode">0</param>
         <param name="Return Delay Time">0</param>
       </gpio>
@@ -128,13 +126,17 @@
       <gpio name="dxl2">
         <param name="type">dxl</param>
         <param name="ID">12</param>
-        <command_interface name="Goal Current"/>
+        <command_interface name="Goal Position"/>
         <state_interface name="Present Position"/>
         <state_interface name="Present Velocity"/>
         <state_interface name="Present Current"/>
         <state_interface name="Torque Enable"/>
         <state_interface name="Present Input Voltage"/>
-        <param name="Operating Mode">0</param>
+        <param name="Position P Gain">800</param>
+        <param name="Position I Gain">100</param>
+        <param name="Position D Gain">100</param>
+        <param name="Profile Velocity">200</param>
+        <param name="Profile Acceleration">50</param>
         <param name="Drive Mode">0</param>
         <param name="Return Delay Time">0</param>
       </gpio>
@@ -142,13 +144,17 @@
       <gpio name="dxl3">
         <param name="type">dxl</param>
         <param name="ID">13</param>
-        <command_interface name="Goal Current"/>
+        <command_interface name="Goal Position"/>
         <state_interface name="Present Position"/>
         <state_interface name="Present Velocity"/>
         <state_interface name="Present Current"/>
         <state_interface name="Torque Enable"/>
         <state_interface name="Present Input Voltage"/>
-        <param name="Operating Mode">0</param>
+        <param name="Position P Gain">800</param>
+        <param name="Position I Gain">100</param>
+        <param name="Position D Gain">100</param>
+        <param name="Profile Velocity">200</param>
+        <param name="Profile Acceleration">50</param>
         <param name="Drive Mode">0</param>
         <param name="Return Delay Time">0</param>
       </gpio>
@@ -156,13 +162,17 @@
       <gpio name="dxl4">
         <param name="type">dxl</param>
         <param name="ID">14</param>
-        <command_interface name="Goal Current"/>
+        <command_interface name="Goal Position"/>
         <state_interface name="Present Position"/>
         <state_interface name="Present Velocity"/>
         <state_interface name="Present Current"/>
         <state_interface name="Torque Enable"/>
         <state_interface name="Present Input Voltage"/>
-        <param name="Operating Mode">0</param>
+        <param name="Position P Gain">800</param>
+        <param name="Position I Gain">100</param>
+        <param name="Position D Gain">100</param>
+        <param name="Profile Velocity">200</param>
+        <param name="Profile Acceleration">50</param>
         <param name="Drive Mode">0</param>
         <param name="Return Delay Time">0</param>
       </gpio>

@@ -149,13 +149,13 @@ ros2 control list_controllers -c /robot2/controller_manager
 ### Load/Unload Controllers
 
 ```bash
-# Load gravity compensation controller for robot 1
-ros2 control load_controller -c /robot1/controller_manager robot1/gravity_comp_controller
+# Load & activate gravity compensation controller for robot 1 via spawner
+ros2 run controller_manager spawner robot1/gravity_comp_controller \
+    --controller-manager /robot1/controller_manager \
+    --param-file $(ros2 pkg prefix omx_gravity_comp_controller)/share/omx_gravity_comp_controller/config/gravity_comp_controller.yaml \
+    --set-state active
 
-# Start controller
-ros2 control set_controller_state -c /robot1/controller_manager robot1/gravity_comp_controller active
-
-# Stop controller
+# To change states thereafter use the set_controller_state command
 ros2 control set_controller_state -c /robot1/controller_manager robot1/gravity_comp_controller inactive
 ```
 
@@ -255,11 +255,15 @@ ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py \
 # Check controller manager status
 ros2 control list_controllers -c /robot1/controller_manager
 
-# Manually load controllers
-ros2 control load_controller -c /robot1/controller_manager robot1/joint_state_broadcaster
-ros2 control load_controller -c /robot1/controller_manager robot1/gravity_comp_controller
-ros2 control set_controller_state -c /robot1/controller_manager robot1/joint_state_broadcaster active
-ros2 control set_controller_state -c /robot1/controller_manager robot1/gravity_comp_controller active
+# Manually load controllers using the spawner helper:
+ros2 run controller_manager spawner joint_state_broadcaster \
+    --controller-manager /robot1/controller_manager \
+    --param-file $(ros2 pkg prefix omx_variable_stiffness_controller)/share/omx_variable_stiffness_controller/config/variable_stiffness_controller.yaml \
+    --set-state active
+ros2 run controller_manager spawner robot1/gravity_comp_controller \
+    --controller-manager /robot1/controller_manager \
+    --param-file $(ros2 pkg prefix omx_gravity_comp_controller)/share/omx_gravity_comp_controller/config/gravity_comp_controller.yaml \
+    --set-state active
 ```
 
 ### Gazebo Not Starting

@@ -56,4 +56,15 @@ install(FILES plugin.xml
   DESTINATION share/${PROJECT_NAME}
 )
 
+# tests
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  find_package(sensor_msgs REQUIRED)
+  find_package(controller_manager_msgs REQUIRED)
+  # basic plugin loading test
+  ament_add_pytest_test(test_plugin_load test/test_plugin_load.py)
+  # full simulation smoke test (headless Gazebo)
+  ament_add_pytest_test(test_simulation_launch test/test_simulation_launch.py)
+endif()
+
 ament_package()

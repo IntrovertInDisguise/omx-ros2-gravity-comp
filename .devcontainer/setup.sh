@@ -27,6 +27,21 @@ apt-get install -y \
     python3-serial \
     x11vnc \
     novnc
+    # X/Qt dependencies for gzclient (Qt 'xcb' platform plugin)
+    libxcb1 \
+    libxcb-xinerama0 \
+    libxkbcommon-x11-0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-xfixes0 \
+    libx11-xcb1 \
+    libglu1-mesa \
+    libgl1-mesa-glx \
+    x11-xserver-utils \
+    libqt5gui5
 
 # Clone dynamixel packages if not present
 cd /workspaces/omx_ros2/ws/src
