@@ -8,6 +8,8 @@ This document captures the current state of the workspace, issues encountered, r
 
 **Update (2026-02-27 UTC):** Synchronized `README.md` and `project_status.md`. Headless CI/unit tests are passing in the devcontainer (fake‑hardware, `launch_gazebo:=false`); full Gazebo integration tests remain pending and should be run on a host with `gzserver` and `gazebo_ros2_control`. Next immediate steps: run real‑Gazebo integration on capable host and verify controller manager reaches `active` state.
 
+**Update (2026-03-04 UTC):** Hardware YAML/launch audit complete. Single-hardware `variable_stiffness_controller.yaml` completely rewritten (was broken: bare namespace, sim params, missing safety params). Dual-hardware YAMLs synced with all safety/singularity/waypoint params across all 6 namespace blocks. Single-hardware launch now uses `--set-state active`. New `tools/ee_force_sensor.py` provides live EE contact force Vector3 + magnitude for future force-feedback loops.
+
 ## 1. Overview
 
 - **Primary Objective:** Get the OpenManipulator-X simulation working with `ros2_control` in Gazebo, fix NaN joint velocities in `/omx/joint_states`, and provide a robust testing infrastructure.

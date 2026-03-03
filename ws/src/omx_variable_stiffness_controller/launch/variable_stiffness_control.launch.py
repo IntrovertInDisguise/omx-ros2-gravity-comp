@@ -142,7 +142,6 @@ def generate_launch_description():
             controller_config,
         ],
         remappings=[
-            # IMPORTANT: connect controller_manager to correct robot_description
             ("~/robot_description", "robot_description"),
         ],
         output="both",
@@ -160,6 +159,7 @@ def generate_launch_description():
             ["/", robot_namespace, "/controller_manager"],
             "--param-file",
             controller_config,
+            "--set-state", "active",
         ],
         output="screen",
     )
@@ -173,6 +173,7 @@ def generate_launch_description():
             ["/", robot_namespace, "/controller_manager"],
             "--param-file",
             controller_config,
+            "--set-state", "active",
         ],
         output="screen",
     )
