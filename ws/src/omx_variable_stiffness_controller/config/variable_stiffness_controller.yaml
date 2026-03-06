@@ -2,6 +2,10 @@
 #  variable_stiffness_controller.yaml
 #  SINGLE-ROBOT HARDWARE config for variable stiffness
 #  Namespace: /omx  (must match launch file robot_namespace)
+#
+#  Structure: The CM section holds controller type declarations.
+#  Each controller has its OWN lifecycle node, so its parameters
+#  must be in a separate YAML section matching the node's FQN.
 # ============================================================
 
 /omx/controller_manager:
@@ -17,8 +21,6 @@
 
 /omx/variable_stiffness_controller:
   ros__parameters:
-    use_sim_time: false
-
     joints:
       - joint1
       - joint2
@@ -35,22 +37,27 @@
     root_link: world
     tip_link: end_effector_link
     robot_description_node: "/omx/robot_state_publisher"
-    torque_scale: 200.0    # XM430-W350: ~267 theoretical; start conservative
+    torque_scale: 180.0    # conservative first-pass; raise once homing verified
 
     # ── Trajectory ───────────────────────────────────────────
-    start_position: [0.30, 0.02, 0.10]
-    end_position:   [0.14, 0.02, 0.10]
-    target_orientation: [0.0, 0.5, 0.0]
+    # z=0.20 to clear the gripper from the work surface on real hardware.
+    start_position: [0.28, 0.0, 0.20]
+    end_position:   [0.165, 0.0, 0.20]
+    target_orientation: [0.0, 0.0, 0.0]
 
     homing_duration: 8.0
-    move_duration:   15.0
-    wait_duration:   3.0
+    move_duration:   6.0
+    wait_duration:   2.0
 
     # ── Homing / Wait impedance ──────────────────────────────
+    # Hardware: torque_scale=200 converts Nm→goal_current.
+    # At K=100, Δx=0.09m: F=9N → J^T→~2.3Nm → ×200=460 units.
+    # Well within 1100 limit; enough to overcome stiction+gravity.
+    # Rotational stiffness is zeroed during HOMING in code.
     stiffness_homing: [50.0, 50.0, 50.0]
-    damping_default:  [3.0,  3.0,  3.0]
-    stiffness_rot:    [15.0, 15.0, 15.0]
-    damping_rot:      [0.8,  0.8,  0.8]
+    damping_default:  [2.0,  2.0,  2.0]  # raised to match stiffer homing (avoid oscillation)
+    stiffness_rot:    [0.0,  0.0,  0.0]
+    damping_rot:      [0.0,  0.0,  0.0]
     max_rise_rate: 50.0
 
     # ── Variable Stiffness Profile (51-point bell) ────────────
@@ -63,65 +70,70 @@
       10.0]
 
     stiffness_profile_y:
-      [12.0, 12.063, 12.251, 12.562, 12.99, 13.528, 14.168, 14.901, 15.713, 16.594,
-      17.528, 18.501, 19.498, 20.502, 21.499, 22.472, 23.406, 24.287, 25.099, 25.832,
-      26.472, 27.01, 27.438, 27.749, 27.937, 28.0, 27.937, 27.749, 27.438, 27.01,
-      26.472, 25.832, 25.099, 24.287, 23.406, 22.472, 21.499, 20.502, 19.498, 18.501,
-      17.528, 16.594, 15.713, 14.901, 14.168, 13.528, 12.99, 12.562, 12.251, 12.063,
-      12.0]
+      [15.0, 15.08, 15.316, 15.702, 16.238, 16.91, 17.71, 18.626, 19.641, 20.743,
+      21.91, 23.127, 24.373, 25.627, 26.873, 28.09, 29.257, 30.352, 31.361, 32.265,
+      33.049, 33.691, 34.173, 34.486, 34.922, 35.0, 34.922, 34.486, 34.173, 33.691,
+      33.049, 32.265, 31.361, 30.352, 29.257, 28.09, 26.873, 25.627, 24.373, 23.127,
+      21.91, 20.743, 19.641, 18.626, 17.71, 16.91, 16.238, 15.702, 15.316, 15.08,
+      15.0]
 
     stiffness_profile_z:
-      [18.0, 18.067, 18.267, 18.597, 19.051, 19.623, 20.304, 21.082, 21.945, 22.881,
-      23.873, 24.907, 25.966, 27.034, 28.093, 29.127, 30.119, 31.055, 31.918, 32.696,
-      33.377, 33.949, 34.403, 34.733, 34.933, 35.0, 34.933, 34.733, 34.403, 33.949,
-      33.377, 32.696, 31.918, 31.055, 30.119, 29.127, 28.093, 27.034, 25.966, 24.907,
-      23.873, 22.881, 21.945, 21.082, 20.304, 19.623, 19.051, 18.597, 18.267, 18.067,
-      18.0]
+      [22.0, 22.077, 22.305, 22.682, 23.202, 23.857, 24.632, 25.516, 26.493, 27.547,
+      28.663, 29.831, 31.037, 32.268, 33.507, 34.747, 35.973, 37.175, 38.333, 39.430,
+      40.447, 41.366, 42.167, 42.830, 43.330, 43.636, 43.330, 42.830, 42.167, 41.366,
+      40.447, 39.430, 38.333, 37.175, 35.973, 34.747, 33.507, 32.268, 31.037, 29.831,
+      28.663, 27.547, 26.493, 25.516, 24.632, 23.857, 23.202, 22.682, 22.305, 22.077,
+      22.0]
 
     damping_profile_x:
-      [1.2, 1.204, 1.216, 1.235, 1.262, 1.295, 1.336, 1.381, 1.432, 1.487,
-      1.545, 1.606, 1.669, 1.731, 1.794, 1.855, 1.913, 1.968, 2.019, 2.064,
-      2.105, 2.138, 2.165, 2.184, 2.196, 2.2, 2.196, 2.184, 2.165, 2.138,
-      2.105, 2.064, 2.019, 1.968, 1.913, 1.855, 1.794, 1.731, 1.669, 1.606,
-      1.545, 1.487, 1.432, 1.381, 1.336, 1.295, 1.262, 1.235, 1.216, 1.204,
-      1.2]
+      [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0]
 
     damping_profile_y:
-      [1.2, 1.203, 1.213, 1.228, 1.249, 1.276, 1.308, 1.345, 1.386, 1.43,
-      1.476, 1.525, 1.575, 1.625, 1.675, 1.724, 1.77, 1.814, 1.855, 1.892,
-      1.924, 1.951, 1.972, 1.987, 1.997, 2.0, 1.997, 1.987, 1.972, 1.951,
-      1.924, 1.892, 1.855, 1.814, 1.77, 1.724, 1.675, 1.625, 1.575, 1.525,
-      1.476, 1.43, 1.386, 1.345, 1.308, 1.276, 1.249, 1.228, 1.213, 1.203,
-      1.2]
+      [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0]
 
-    damping_profile_z:
-      [1.2, 1.203, 1.213, 1.228, 1.249, 1.276, 1.308, 1.345, 1.386, 1.43,
-      1.476, 1.525, 1.575, 1.625, 1.675, 1.724, 1.77, 1.814, 1.855, 1.892,
-      1.924, 1.951, 1.972, 1.987, 1.997, 2.0, 1.997, 1.987, 1.972, 1.951,
-      1.924, 1.892, 1.855, 1.814, 1.77, 1.724, 1.675, 1.625, 1.575, 1.525,
-      1.476, 1.43, 1.386, 1.345, 1.308, 1.276, 1.249, 1.228, 1.213, 1.203,
-      1.2]
+    damping_profile_z:  # flattened to constant damping
+      [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+      2.0]
 
     # ── Safety / singularity ─────────────────────────────────
-    use_joint_space_trajectory: true
+    use_joint_space_trajectory: false
     num_trajectory_samples: 100
     min_manipulability_threshold: 0.01
     dls_damping_factor: 0.1
 
     # ── Joint-space homing / regularization ──────────────────
-    homing_joint_K: 25.0
-    homing_joint_D: 2.0
-    trajectory_joint_reg_K: 15.0
-    trajectory_joint_reg_D: 2.0
+    homing_joint_K: 2.0
+    homing_joint_D: 0.5
+    trajectory_joint_reg_K: 1.0
+    trajectory_joint_reg_D: 0.3
 
     singularity_preferred_joints: [0.0, -0.8, 0.8, 0.5]
-    singularity_escape_K: 3.0
-    singularity_escape_D: 0.3
-    singularity_exit_hysteresis: 2.5
+    singularity_escape_K: 3.5
+    singularity_escape_D: 3.5
+    singularity_exit_hysteresis: 5.5
+
+    # ── Homing convergence ───────────────────────────────────
+    homing_converge_threshold: 0.05
+
+    # ── Per-joint torque saturation ──────────────────────────
+    max_joint_torque_command: 900.0
 
     # ── Waypoint deviation ───────────────────────────────────
     waypoint_blend_duration: 2.0
     deviation_publish_threshold: 0.01
 
     # ── Contact force estimator ──────────────────────────────
-    contact_force_filter_alpha: 0.02

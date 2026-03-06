@@ -3,10 +3,10 @@
 #  DUAL-HARDWARE config for Robot 1 (Left Arm)
 #  Namespace: /robot1  (must match launch file)
 #
-#  NOTE: In ros2_control Humble (v2.53+) all controllers share the
-#  controller_manager node. Controller params must be at the TOP
-#  level of ros__parameters (not in a separate node namespace).
-#  Only the controller *type* goes under the controller name key.
+#  Structure: The CM section holds controller type declarations.
+#  Each controller has its OWN lifecycle node, so its parameters
+#  must be in a separate YAML section matching the node's FQN
+#  (/robot1/robot1_variable_stiffness).
 # ============================================================
 
 /robot1/controller_manager:
@@ -14,14 +14,14 @@
     update_rate: 500
     use_sim_time: false
 
-    # ── Controller type registrations ─────────────────────────
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
     robot1_variable_stiffness:
       type: omx_variable_stiffness_controller/OmxVariableStiffnessController
 
-    # ── Controller parameters (shared CM node — FLAT) ─────────
+/robot1/robot1_variable_stiffness:
+  ros__parameters:
     joints:
       - robot1_joint1
       - robot1_joint2
