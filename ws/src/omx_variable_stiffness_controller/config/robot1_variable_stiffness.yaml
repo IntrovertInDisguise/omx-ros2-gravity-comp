@@ -106,7 +106,7 @@
       2.0]
 
     # ── Safety / singularity ─────────────────────────────────
-    use_joint_space_trajectory: true
+    use_joint_space_trajectory: false
     num_trajectory_samples: 100
     min_manipulability_threshold: 0.01
     dls_damping_factor: 0.1
