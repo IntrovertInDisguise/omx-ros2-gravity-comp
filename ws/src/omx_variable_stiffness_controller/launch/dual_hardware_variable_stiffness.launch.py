@@ -168,14 +168,22 @@ def generate_launch_description():
     )
 
     # Controller Manager for Robot 1
+    # Pass robot_description both at CM level (for hardware plugin) and at
+    # controller level (so the controller's on_configure can read it via
+    # get_parameter without subscribing to a topic — avoids deadlock).
     robot1_controller_manager = Node(
         package='controller_manager',
         executable='ros2_control_node',
         name='controller_manager',
         namespace='robot1',
         parameters=[
-            {'robot_description': urdf_robot1, 'use_sim_time': False},
-            controller_config_robot1
+            {'use_sim_time': False},
+            controller_config_robot1,
+            {'robot_description': urdf_robot1,
+             'robot1_variable_stiffness.robot_description': urdf_robot1},
+        ],
+        remappings=[
+            ('~/robot_description', 'robot_description'),
         ],
         output='both',
     )
@@ -187,8 +195,13 @@ def generate_launch_description():
         name='controller_manager',
         namespace='robot2',
         parameters=[
-            {'robot_description': urdf_robot2, 'use_sim_time': False},
-            controller_config_robot2
+            {'use_sim_time': False},
+            controller_config_robot2,
+            {'robot_description': urdf_robot2,
+             'robot2_variable_stiffness.robot_description': urdf_robot2},
+        ],
+        remappings=[
+            ('~/robot_description', 'robot_description'),
         ],
         output='both',
     )
@@ -200,8 +213,6 @@ def generate_launch_description():
         arguments=[
             'joint_state_broadcaster',
             '--controller-manager', '/robot1/controller_manager',
-            '--param-file', controller_config_robot1,
-            '--set-state', 'active',
         ],
         output='screen',
     )
@@ -212,8 +223,6 @@ def generate_launch_description():
         arguments=[
             'robot1_variable_stiffness',
             '--controller-manager', '/robot1/controller_manager',
-            '--param-file', controller_config_robot1,
-            '--set-state', 'active',
         ],
         output='screen',
     )
@@ -224,8 +233,6 @@ def generate_launch_description():
         arguments=[
             'joint_state_broadcaster',
             '--controller-manager', '/robot2/controller_manager',
-            '--param-file', controller_config_robot2,
-            '--set-state', 'active',
         ],
         output='screen',
     )
@@ -236,20 +243,20 @@ def generate_launch_description():
         arguments=[
             'robot2_variable_stiffness',
             '--controller-manager', '/robot2/controller_manager',
-            '--param-file', controller_config_robot2,
-            '--set-state', 'active',
         ],
         output='screen',
     )
 
-    # Delay controller loading
+    # Delay controller loading — give CM enough time to fully initialise
+    # before spawners try to contact it (mirrors the single-hardware
+    # pattern where spawning is event-driven after servo reboot).
     delay_robot1_controllers = TimerAction(
-        period=3.0,
+        period=5.0,
         actions=[load_joint_state_broadcaster_robot1, load_variable_stiffness_controller_robot1],
     )
 
     delay_robot2_controllers = TimerAction(
-        period=3.5,
+        period=5.5,
         actions=[load_joint_state_broadcaster_robot2, load_variable_stiffness_controller_robot2],
     )
 
@@ -280,9 +287,9 @@ def generate_launch_description():
         output='screen',
     )
 
-    # Delay stiffness loaders
+    # Delay stiffness loaders — after controllers are spawned and active
     delay_stiffness_loaders = TimerAction(
-        period=6.0,
+        period=12.0,
         actions=[robot1_stiffness_loader, robot2_stiffness_loader],
     )
 
@@ -314,7 +321,7 @@ def generate_launch_description():
     )
 
     delay_loggers = TimerAction(
-        period=6.0,
+        period=12.0,
         actions=[robot1_logger, robot2_logger],
     )
 
