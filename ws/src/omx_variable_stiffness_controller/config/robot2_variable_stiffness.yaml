@@ -1,6 +1,7 @@
 # Variable Stiffness Controller Configuration for Robot 2 (Right Arm)
-# Independent trajectory and stiffness profiles
 
+# All controller parameters are declared under the controller_manager
+# namespace so ros2_control can load them directly.
 /robot2/controller_manager:
   ros__parameters:
     update_rate: 500
@@ -11,125 +12,73 @@
 
     robot2_variable_stiffness:
       type: omx_variable_stiffness_controller/OmxVariableStiffnessController
+      # Joint configuration for Robot 2 (hardware names)
+      joints:
+        - robot2_joint1
+        - robot2_joint2
+        - robot2_joint3
+        - robot2_joint4
 
-# Params for robot2 controller - declare in both namespaces due to Gazebo namespace leakage
-/robot2/robot2_variable_stiffness:
-  ros__parameters:
-    # Joint configuration for Robot 2
-    joints:
-      - robot2_joint1
-      - robot2_joint2
-      - robot2_joint3
-      - robot2_joint4
+      state_interfaces:
+        - position
+        - velocity
+        - effort
+      command_interfaces:
+        - effort
 
-    state_interfaces:
-      - position
-      - velocity
-      - effort
-    command_interfaces:
-      - effort
+      # Kinematics / frames
+      root_link: world
+      tip_link: robot2_link5
+      robot_description_node: /robot2/robot_state_publisher
 
-    root_link: world
-    tip_link: robot2_link5
-    robot_description_node: /robot2/robot_state_publisher
-    torque_scale: 200.0
+      # Scaling / safety
+      torque_scale: 200.0
+      max_joint_torque_command: 1100.0
 
-    # Robot 2 trajectory timing parameters
-    homing_duration: 8.0
-    move_duration: 15.0
-    wait_duration: 3.0
-    max_rise_rate: 50.0
+      # Timing
+      homing_duration: 8.0
+      move_duration: 15.0
+      wait_duration: 3.0
+      max_rise_rate: 50.0
 
-    # Robot 2 Cartesian waypoints [x, y, z] in meters
-    start_position: [0.30, -0.02, 0.10]
-    end_position: [0.14, -0.02, 0.10]
-    target_orientation: [0.0, 0.5, 0.0]
+      # Cartesian waypoints [x, y, z] in meters
+      start_position: [0.30, -0.02, 0.15]
+      end_position: [0.14, -0.02, 0.15]
+      target_orientation: [0.0, 0.5, 0.0]
 
-    # Robot 2 Stiffness parameters
-    # HARDWARE LIMITS: Max stiffness = 65 N/m, Max damping = 3 Ns/m
-    stiffness_homing: [50.0, 50.0, 50.0]
-    stiffness_rot: [15.0, 15.0, 15.0]
-    damping_rot: [0.8, 0.8, 0.8]
-    damping_default: [3.0, 3.0, 3.0]
+      # Stiffness / damping
+      stiffness_homing: [15.0, 15.0, 25.0]
+      stiffness_rot: [15.0, 15.0, 15.0]
+      damping_rot: [0.8, 0.8, 0.8]
+      damping_default: [3.0, 3.0, 3.0]
 
-    # Safety / singularity
-    use_joint_space_trajectory: true
-    num_trajectory_samples: 100
-    min_manipulability_threshold: 0.01
-    dls_damping_factor: 0.1
-    homing_joint_K: 25.0
-    homing_joint_D: 2.0
-    trajectory_joint_reg_K: 15.0
-    trajectory_joint_reg_D: 2.0
-    singularity_preferred_joints: [0.0, -0.8, 0.8, 0.5]
-    singularity_escape_K: 3.0
-    singularity_escape_D: 0.3
-    singularity_exit_hysteresis: 2.5
+      # Safety / singularity
+      use_joint_space_trajectory: true
+      num_trajectory_samples: 100
+      min_manipulability_threshold: 0.01
+      dls_damping_factor: 0.1
+      homing_joint_K: 25.0
+      homing_joint_D: 2.0
+      trajectory_joint_reg_K: 15.0
+      trajectory_joint_reg_D: 2.0
+      singularity_preferred_joints: [0.0, -0.8, 0.8, 0.5]
+      singularity_escape_K: 3.0
+      singularity_escape_D: 0.3
+      singularity_exit_hysteresis: 2.5
+      homing_converge_threshold: 0.05
 
-    # Waypoint deviation
-    waypoint_blend_duration: 2.0
-    deviation_publish_threshold: 0.01
+      # Waypoint deviation / contact
+      waypoint_blend_duration: 2.0
+      deviation_publish_threshold: 0.01
+      contact_force_filter_alpha: 0.02
 
-    # Contact force estimator
-    contact_force_filter_alpha: 0.02
-
-    # Robot 2 stiffness/damping profiles (independent from robot1)
-    stiffness_profile_x: []
-    stiffness_profile_y: []
-    stiffness_profile_z: []
-    damping_profile_x: []
-    damping_profile_y: []
-    damping_profile_z: []
-
-/robot1/robot2_variable_stiffness:
-  ros__parameters:
-    joints:
-      - robot2_joint1
-      - robot2_joint2
-      - robot2_joint3
-      - robot2_joint4
-    state_interfaces:
-      - position
-      - velocity
-      - effort
-    command_interfaces:
-      - effort
-    root_link: world
-    tip_link: robot2_link5
-    robot_description_node: /robot2/robot_state_publisher
-    torque_scale: 200.0
-    homing_duration: 8.0
-    move_duration: 15.0
-    wait_duration: 3.0
-    max_rise_rate: 50.0
-    start_position: [0.30, -0.02, 0.10]
-    end_position: [0.14, -0.02, 0.10]
-    target_orientation: [0.0, 0.5, 0.0]
-    stiffness_homing: [50.0, 50.0, 50.0]
-    stiffness_rot: [15.0, 15.0, 15.0]
-    damping_rot: [0.8, 0.8, 0.8]
-    damping_default: [3.0, 3.0, 3.0]
-    use_joint_space_trajectory: true
-    num_trajectory_samples: 100
-    min_manipulability_threshold: 0.01
-    dls_damping_factor: 0.1
-    homing_joint_K: 25.0
-    homing_joint_D: 2.0
-    trajectory_joint_reg_K: 15.0
-    trajectory_joint_reg_D: 2.0
-    singularity_preferred_joints: [0.0, -0.8, 0.8, 0.5]
-    singularity_escape_K: 3.0
-    singularity_escape_D: 0.3
-    singularity_exit_hysteresis: 2.5
-    waypoint_blend_duration: 2.0
-    deviation_publish_threshold: 0.01
-    contact_force_filter_alpha: 0.02
-    stiffness_profile_x: []
-    stiffness_profile_y: []
-    stiffness_profile_z: []
-    damping_profile_x: []
-    damping_profile_y: []
-    damping_profile_z: []
+      # Profiles (CSV or inline). Empty lists mean constant values used.
+      stiffness_profile_x: []
+      stiffness_profile_y: []
+      stiffness_profile_z: []
+      damping_profile_x: []
+      damping_profile_y: []
+      damping_profile_z: []
 
 # Also need robot1 controller params since both files may be loaded
 /robot1/robot1_variable_stiffness:
@@ -153,10 +102,10 @@
     move_duration: 15.0
     wait_duration: 3.0
     max_rise_rate: 50.0
-    start_position: [0.30, 0.02, 0.10]
-    end_position: [0.14, 0.02, 0.10]
+    start_position: [0.30, 0.02, 0.15]
+    end_position: [0.14, 0.02, 0.15]
     target_orientation: [0.0, 0.5, 0.0]
-    stiffness_homing: [50.0, 50.0, 50.0]
+    stiffness_homing: [15.0, 15.0, 25.0]
     stiffness_rot: [15.0, 15.0, 15.0]
     damping_rot: [0.8, 0.8, 0.8]
     damping_default: [3.0, 3.0, 3.0]
@@ -203,10 +152,10 @@
     move_duration: 15.0
     wait_duration: 3.0
     max_rise_rate: 50.0
-    start_position: [0.30, 0.02, 0.10]
-    end_position: [0.14, 0.02, 0.10]
+    start_position: [0.30, 0.02, 0.15]
+    end_position: [0.14, 0.02, 0.15]
     target_orientation: [0.0, 0.5, 0.0]
-    stiffness_homing: [50.0, 50.0, 50.0]
+    stiffness_homing: [15.0, 15.0, 25.0]
     stiffness_rot: [15.0, 15.0, 15.0]
     damping_rot: [0.8, 0.8, 0.8]
     damping_default: [3.0, 3.0, 3.0]
