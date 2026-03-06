@@ -15,6 +15,7 @@ s,Kx,Ky,Kz,Dx,Dy,Dz
 """
 
 import csv
+import time
 import rclpy
 from rclpy.node import Node
 from rcl_interfaces.srv import SetParameters
@@ -30,11 +31,15 @@ class StiffnessLoader(Node):
         self.declare_parameter('csv_path', '')
         self.declare_parameter('controller_name', 'variable_stiffness_controller')
         self.declare_parameter('use_parameter_service', True)
+        self.declare_parameter('service_wait_timeout', 30.0)
+        self.declare_parameter('service_retry_interval', 1.0)
         self.declare_parameter('publish_rate', 0.0)  # 0 = one-shot, >0 = periodic Hz
 
         self.csv_path = self.get_parameter('csv_path').get_parameter_value().string_value
         self.controller_name = self.get_parameter('controller_name').get_parameter_value().string_value
         self.use_param_service = self.get_parameter('use_parameter_service').get_parameter_value().bool_value
+        self.service_wait_timeout = self.get_parameter('service_wait_timeout').get_parameter_value().double_value
+        self.service_retry_interval = self.get_parameter('service_retry_interval').get_parameter_value().double_value
         self.publish_rate = self.get_parameter('publish_rate').get_parameter_value().double_value
 
         if not self.csv_path:
@@ -150,12 +155,27 @@ class StiffnessLoader(Node):
             ns = ''
 
         service_name = f'{ns}/{self.controller_name}/set_parameters'
-        self.get_logger().info(f'Waiting for service: {service_name}')
+        self.get_logger().info(f'Waiting for service: {service_name} (timeout {self.service_wait_timeout}s)')
 
         client = self.create_client(SetParameters, service_name)
 
-        if not client.wait_for_service(timeout_sec=10.0):
-            self.get_logger().error(f'Service {service_name} not available')
+        # Wait with retries up to total timeout
+        start = time.time()
+        available = False
+        while time.time() - start < float(self.service_wait_timeout):
+            if client.wait_for_service(timeout_sec=float(self.service_retry_interval)):
+                available = True
+                break
+            self.get_logger().warn(f'Service {service_name} not available yet; retrying...')
+
+        if not available:
+            self.get_logger().error(f'Service {service_name} not available after {self.service_wait_timeout}s; falling back to topic publish')
+            # Fallback: publish profiles on topic if possible
+            topic = f'{ns}/{self.controller_name}/stiffness_profile_update'
+            self.get_logger().info(f'Attempting fallback publish on topic: {topic}')
+            self.profile_pub = self.create_publisher(Float64MultiArray, topic, 10)
+            # One-shot publish
+            self.publish_profiles_once()
             return
 
         # Build parameter messages
@@ -209,7 +229,11 @@ class StiffnessLoader(Node):
     def publish_profiles_once(self):
         """Publish profiles once and stop the timer."""
         self.publish_profiles()
-        self.timer.cancel()
+        if hasattr(self, 'timer') and self.timer is not None:
+            try:
+                self.timer.cancel()
+            except Exception:
+                pass
         self.get_logger().info('Published stiffness profiles (one-shot)')
 
 
