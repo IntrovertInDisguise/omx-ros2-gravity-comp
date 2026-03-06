@@ -121,11 +121,3 @@
       waypoint_blend_duration: 2.0
       deviation_publish_threshold: 0.01
       contact_force_filter_alpha: 0.02
-
-      # Profiles (CSV or inline). Empty lists mean constant values used.
-      stiffness_profile_x: []
-      stiffness_profile_y: []
-      stiffness_profile_z: []
-      damping_profile_x: []
-      damping_profile_y: []
-      damping_profile_z: []
