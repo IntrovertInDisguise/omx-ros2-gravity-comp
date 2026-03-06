@@ -72,12 +72,16 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'robot1_csv_file',
-            default_value='',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot1_stiffness_profile.csv'
+            ]),
             description='Path to Robot 1 stiffness profile CSV (optional)'
         ),
         DeclareLaunchArgument(
             'robot2_csv_file',
-            default_value='',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot2_stiffness_profile.csv'
+            ]),
             description='Path to Robot 2 stiffness profile CSV (optional)'
         ),
         DeclareLaunchArgument(
