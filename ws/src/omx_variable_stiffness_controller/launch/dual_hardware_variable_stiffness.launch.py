@@ -174,7 +174,6 @@ def generate_launch_description():
     robot1_controller_manager = Node(
         package='controller_manager',
         executable='ros2_control_node',
-        name='controller_manager',
         namespace='robot1',
         parameters=[
             {'use_sim_time': False},
@@ -192,7 +191,6 @@ def generate_launch_description():
     robot2_controller_manager = Node(
         package='controller_manager',
         executable='ros2_control_node',
-        name='controller_manager',
         namespace='robot2',
         parameters=[
             {'use_sim_time': False},

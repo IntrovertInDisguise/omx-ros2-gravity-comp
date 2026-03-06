@@ -13,8 +13,9 @@ Supports:
 import glob
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler, TimerAction
 from launch.conditions import IfCondition
+from launch.event_handlers import OnProcessExit
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -108,7 +109,10 @@ def generate_launch_description():
             "urdf",
             "open_manipulator_x_robot.urdf.xacro",
         ]),
-        " use_sim:=", sim,
+        # use_sim selects the GazeboSystem plugin — only set for real Gazebo.
+        # For fake/mock hardware (sim:=true without Gazebo), use_fake_hardware
+        # selects fake_components/GenericSystem instead.
+        " use_sim:=false",
         " use_fake_hardware:=", sim,
         " port_name:=", port,
         " controller_config:=", controller_config,
@@ -135,11 +139,15 @@ def generate_launch_description():
     controller_manager = Node(
         package="controller_manager",
         executable="ros2_control_node",
-        name="controller_manager",
         namespace=robot_namespace,
         parameters=[
             {"use_sim_time": PythonExpression(["'", sim, "' == 'true'"])},
             controller_config,
+            # Pass robot_description directly so the controller's on_configure()
+            # can read it via get_parameter() without subscribing to any topic.
+            # This avoids executor-deadlock timeouts in the CM's lifecycle thread.
+            {"variable_stiffness_controller.robot_description":
+                ParameterValue(urdf, value_type=str)},
         ],
         remappings=[
             ("~/robot_description", "robot_description"),
@@ -157,9 +165,6 @@ def generate_launch_description():
             "joint_state_broadcaster",
             "--controller-manager",
             ["/", robot_namespace, "/controller_manager"],
-            "--param-file",
-            controller_config,
-            "--set-state", "active",
         ],
         output="screen",
     )
@@ -171,16 +176,47 @@ def generate_launch_description():
             "variable_stiffness_controller",
             "--controller-manager",
             ["/", robot_namespace, "/controller_manager"],
-            "--param-file",
-            controller_config,
-            "--set-state", "active",
         ],
         output="screen",
     )
 
-    delay_controllers = TimerAction(
-        period=5.0,
+    # -------------------------
+    # Servo auto-reboot (hardware only)
+    # Calls the DynamixelHardware CommReset service to clear any hardware
+    # error state (overload/temperature protection) left from a previous crash.
+    # Runs after the controller_manager has had time to open the serial port
+    # and initialize servos, but before controller spawners activate torque.
+    # -------------------------
+    reboot_servos = ExecuteProcess(
+        cmd=['bash', '-lc',
+             ['ros2 service call /',
+              robot_namespace,
+              '/dynamixel_hardware_interface/reboot_dxl'
+              ' dynamixel_interfaces/srv/RebootDxl "{}"']],
+        output='screen',
+        condition=IfCondition(PythonExpression(["'", sim, "' != 'true'"])),
+    )
+
+    delay_reboot = TimerAction(
+        period=4.0,
+        actions=[reboot_servos],
+        condition=IfCondition(PythonExpression(["'", sim, "' != 'true'"])),
+    )
+
+    # In hardware mode: spawn controllers after reboot completes.
+    # In sim mode: spawn after a flat 4s delay (no reboot step).
+    load_controllers_after_reboot = RegisterEventHandler(
+        OnProcessExit(
+            target_action=reboot_servos,
+            on_exit=[load_jsb, load_vs_controller],
+        ),
+        condition=IfCondition(PythonExpression(["'", sim, "' != 'true'"])),
+    )
+
+    delay_controllers_sim = TimerAction(
+        period=4.0,
         actions=[load_jsb, load_vs_controller],
+        condition=IfCondition(sim),
     )
 
     # -------------------------
@@ -244,7 +280,9 @@ def generate_launch_description():
         *declared_arguments,
         robot_state_publisher,
         controller_manager,
-        delay_controllers,
+        delay_reboot,
+        load_controllers_after_reboot,
+        delay_controllers_sim,
         delay_stiffness_loader,
         delay_logger,
         rviz_node,
