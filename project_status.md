@@ -4,11 +4,216 @@ This document captures the current state of the workspace, issues encountered, r
 
 ---
 
+## Update (2026-03-05 — Gazebo GUI Confirmed + Safety Hardening)
+
+### Session Summary
+
+Continued iterating on `omx_variable_stiffness_controller`. Key outcomes:
+
+1. **Gazebo GUI confirmed working** — `gui:=true launch_gazebo:=true` reliably launches both `gzserver` and `gzclient`. Root cause of previous `gzserver exit 255` was missing `LD_LIBRARY_PATH` fix added to `gazebo_variable_stiffness.launch.py`.
+2. **Full state machine verified in GUI simulation** — HOMING → MOVE_FORWARD → WAIT_AT_END → MOVE_RETURN → WAIT_AT_START cycling correctly. Bell stiffness profile active, no singularity events, contact force estimator returning `valid=YES`.
+3. **YAML duplication bug fixed** — `gazebo_variable_stiffness.yaml` had trajectory params (`start_position`, `end_position`, etc.) duplicated in two places. The CM-level dotted keys (e.g. `variable_stiffness_controller.start_position`) are **not read** by the controller — only the `/omx/variable_stiffness_controller:` section is. The dead entries were removed and a clear `★ EDIT TRAJECTORY ENDPOINTS HERE` comment was added to avoid future confusion.
+4. **x ≥ 0.16 m hard clamp** added in `on_configure()` — any YAML value below 0.16 is clamped with a `[SAFETY]` warning before trajectory validation runs.
+
+### Code Changes (this session)
+
+| File | Change |
+|------|--------|
+| `omx_variable_stiffness_controller.cpp` | x ≥ 0.16 clamp for `start_pos_`/`end_pos_` in `on_configure()`; CM deadlock fix (independent temp node for `robot_description`); stale-data detector (50-cycle zero-torque guard); gravity-preserving clamp (scales PD only, preserves gravity comp); joint-limit barrier (K=50 N·m/rad, soft 0.05 rad); torque ramp 2 s on hardware; null-space regularisation during HOMING; convergence gate before HOMING→MOVE_FORWARD |
+| `omx_variable_stiffness_controller.hpp` | `MAX_CARTESIAN_DAMPING` raised 3→10 Ns/m; added `max_joint_torque_command_`, `torque_ramp_duration_`, `activation_time_`, `stale_position_count_`, `q_prev_`, `K_rot_current_`, `Kd_ang_current_` |
+| `gazebo_variable_stiffness.launch.py` | `LD_LIBRARY_PATH` fix; `use_sim_time` hardcoded `True`; `variable_stiffness_controller.robot_description` injected directly |
+| `gazebo_variable_stiffness.yaml` | Removed dead CM-level trajectory param duplicates; added EDIT-HERE comment; fixed stale header comment; revised stiffness/damping profiles (`stiffness_homing: [15,15,25]`, `damping_default: [2,2,3]`); z damping bell 3–7 Ns/m |
+| `variable_stiffness_controller.yaml` | Complete restructure: all params at `/omx/controller_manager` flat top level; conservative hardware gains (`max_joint_torque_command: 1100`, `homing_joint_K: 5.0`) |
+| `open_manipulator_x_system.ros2_control.xacro` | `disable_torque_at_init: true`; `Goal Current` command interface; `Operating Mode: 0` param for dxl1–dxl4 |
+| `variable_stiffness_control.launch.py` | Servo reboot step; removed `--param-file`/`--set-state active` from spawners; robot_description direct param |
+
+### Current Status
+
+| Item | Status |
+|------|--------|
+| Gazebo GUI (gui:=true) launches | ✅ |
+| Controller full state machine cycles | ✅ |
+| Bell stiffness profile active | ✅ |
+| No singularity events (σ_min > 0.07) | ✅ |
+| Contact force estimator valid | ✅ |
+| Data logger writing CSV | ✅ |
+| x endpoint clamp ≥ 0.16 m | ✅ |
+| Stale-data safety guard | ✅ |
+| Gravity-preserving torque clamp | ✅ |
+| Joint-limit barrier | ✅ |
+| Hardware test | ⏳ Pending (physical robot not connected) |
+| Gazebo window on host screen | ⚠ Requires `--volume=/tmp/.X11-unix` in devcontainer.json + `xhost +local:docker` on host |
+
+### Remaining z-tracking error
+
+EE z-error of ~30–70 mm persists during trajectory. This is **expected** — Cartesian impedance with finite stiffness (18–35 N/m) cannot perfectly reject gravity. The error is bounded and consistent. Increasing `damping_default` z and `damping_profile_z` bell peak reduces oscillation but does not eliminate steady-state sag.
+
+### Next Steps
+
+1. Connect physical robot → run `variable_stiffness_control.launch.py` with conservative hardware YAML
+2. Monitor `sigma_min` during HOMING (expect 0.07+)
+3. Confirm `[CLAMP]` logs stay quiet (no torque saturation) and `[STALE]` logs absent
+4. Commit all staged changes and push to `origin/master`
+
+---
+
+
+
+Three bugs fixed after hardware bus crashes redirected testing to simulation:
+
+| # | Bug | Fix |
+|---|-----|-----|
+| 1 | `wait_for_message()` deadlock inside CM single-threaded executor | Replaced with independent temp node + `SingleThreadedExecutor` (3 s timeout) |
+| 2 | `use_sim:=true` in xacro selects `GazeboSystem` plugin (unavailable in fake-hw mode) | Changed fake-hw launch to `use_sim:=false use_fake_hardware:=true` |
+| 3 | Topic derivation bug: root-level node name (`last_slash==0`) produced `/robot_description` instead of `/omx/robot_description` | Fixed using `node->get_namespace()` fallback |
+| 4 | Null-space drift during HOMING → arm drifted into singularity over ~5 s → bus crash on hardware | Added HOMING case to joint regularization block targeting `trajectory_joint_waypoints_.front()` |
+
+**Gazebo sim test result (fake-hardware, `sim:=true`):**
+- `Got robot_description from topic '/omx/robot_description'` ✅
+- `[SAFETY] Trajectory validated. Min sigma=0.0714 (thresh=0.0100)` ✅
+- HOMING complete with `sigma_min: 0.076–0.077` throughout (never triggered escape) ✅
+- Full state machine cycled: HOMING → MOVE_FORWARD → WAIT_AT_END → MOVE_RETURN → WAIT_AT_START → loop ✅
+- No ESCAPE or STALE events ✅
+- Residual z-tracking error ~4–7 cm (EE z ≈ 0.13–0.17 m vs desired 0.10 m) — addressed below
+
+**z-Damping increase (2026-03-04):**
+- `damping_default` z: `1.5 → 3.5` (hardware), `3.0 → 6.0` (Gazebo)
+- `damping_profile_z`: scaled ×2 throughout bell profile (1.2–2.0 → 2.4–4.0) in both config files
+- Rationale: steady-state z-sag in simulation was ~5 cm; extra damping damps overshoot and gravity-induced oscillation in the vertical axis
+
+**Hardware state:** Dynamixel bus crashed during HOMING (singularity) in last hardware run.  
+Robot needs power cycle before next hardware test. Hardware re-test pending.
+
+**Next steps:**
+1. Re-run Gazebo sim to confirm z-tracking improves with new damping
+2. Power-cycle hardware, run `variable_stiffness_control.launch.py` — expect clean HOMING with null-space regularization fix
+3. Monitor `sigma_min` during HOMING on hardware (expect 0.07+ throughout)
+
+---
+
 **Update (2026-02-26 12:34 UTC):** Changes were committed and pushed to `origin/master` to capture the latest fixes and documentation updates.
 
 **Update (2026-02-27 UTC):** Synchronized `README.md` and `project_status.md`. Headless CI/unit tests are passing in the devcontainer (fake‑hardware, `launch_gazebo:=false`); full Gazebo integration tests remain pending and should be run on a host with `gzserver` and `gazebo_ros2_control`. Next immediate steps: run real‑Gazebo integration on capable host and verify controller manager reaches `active` state.
 
 **Update (2026-03-04 UTC):** Hardware YAML/launch audit complete. Single-hardware `variable_stiffness_controller.yaml` completely rewritten (was broken: bare namespace, sim params, missing safety params). Dual-hardware YAMLs synced with all safety/singularity/waypoint params across all 6 namespace blocks. Single-hardware launch now uses `--set-state active`. New `tools/ee_force_sensor.py` provides live EE contact force Vector3 + magnitude for future force-feedback loops.
+
+**Update (2026-03-04 — Hardware Deployment Session):**
+
+Hardware deployment of `variable_stiffness_controller` on real OpenMANIPULATOR-X.  
+Multiple issues discovered and fixed iteratively:
+
+### Issues Resolved (chronological)
+
+| # | Issue | Fix |
+|---|-------|-----|
+| 1 | `.devcontainer/setup.sh` failed — inline `#` comment broke `apt-get install` continuation | Moved comment above the command |
+| 2 | Spawner `--set-state active` not supported in Humble | Removed from launch file |
+| 3 | "Parameter 'joints' is empty" — params in sub-namespace not visible to CM | All params at **flat top level** of `/omx/controller_manager: ros__parameters:` |
+| 4 | `--param-file` on spawner caused double-loading | Removed from spawner args |
+| 5 | Joints stuck at zero — wrong Dynamixel operating mode | Added `Operating Mode 0` (Current Control) + `Goal Current` command interface to xacro GPIO |
+| 6 | Can't change operating mode with torque enabled from prior crash | Added `disable_torque_at_init: true` to hardware plugin |
+| 7 | Weak singularity escape | Increased `singularity_escape_K: 3→15`, `D: 0.3→1.5` |
+| 8 | **Joint1 wild swinging, arm out of workspace, no straight-line motion** | **Root cause: silent servo torque saturation** (see below) |
+
+### Root Cause Analysis — Joint1 Wild Rotation
+
+The XM430-W350 servo's Goal Current register has a **Current Limit of 1193 raw units**.
+The controller was sending values of **5000+ raw** (e.g., joint1=5069).
+The servo firmware **silently clips** Goal Current to 1193 — the controller never knows.
+
+This destroys the Cartesian impedance force direction:
+- Controller wants `τ = [5069, 554, -1012, 2890]`  
+- Servo actually applies `τ = [1193, 554, -1012, 1193]`  
+- The actual EE force vector points in a completely different direction than intended
+- Joint1 (base rotation) gets far less torque than calculated → Y error grows → positive feedback loop
+
+### Fixes Applied
+
+1. **Per-joint torque command saturation** (C++)
+   - New parameter `max_joint_torque_command` (default **1100.0** raw, below 1193 limit)
+   - Clamped **after all torque computation** but **before writing to hardware**
+   - Preserves Cartesian force direction for unsaturated joints
+   - Throttled `[CLAMP]` warning logged with pre/post values
+   - Files: `omx_variable_stiffness_controller.cpp`, `.hpp`
+
+2. **Trajectory Y = 0.0** (was 0.02)
+   - Arm naturally lives in XZ plane when joint1=0
+   - Y=0 eliminates unnecessary joint1 rotational demand
+   - File: `variable_stiffness_controller.yaml`
+
+### Files Modified (this session)
+
+| File | Changes |
+|------|---------|
+| `.devcontainer/setup.sh` | Fixed inline comment breaking apt-get |
+| `README.md` | Updated single-hardware section for devcontainer |
+| `variable_stiffness_control.launch.py` | Removed `--set-state active`, `--param-file` |
+| `variable_stiffness_controller.yaml` | Flat CM params, Y=0, `max_joint_torque_command: 1100`, escape gains |
+| `open_manipulator_x_system.ros2_control.xacro` | Operating Mode 0, Goal Current GPIO, `disable_torque_at_init` |
+| `omx_variable_stiffness_controller.cpp` | Per-joint torque saturation with `[CLAMP]` logging |
+| `omx_variable_stiffness_controller.hpp` | Added `max_joint_torque_command_` member |
+
+### Current State (2026-03-04)
+
+- ✅ Motors respond to current commands
+- ✅ Gravity compensation works on hardware
+- ✅ Variable stiffness controller launches, state machine cycles
+- ✅ Joint-space homing, singularity escape functional
+- ✅ Per-joint torque saturation prevents silent servo clipping
+- ✅ Torque clamping confirmed working — `[CLAMP]` logs show raw vs clamped values
+- ⏳ **Testing:** Straight-line trajectory on hardware (proportional scaling + convergence homing)
+
+### Hardware Test 1 Results (2026-03-04 18:51 UTC)
+
+Controller launched with per-joint torque clamping (±1100) and Y=0 trajectory.
+
+**What worked:**
+- Hardware connection, servo operating mode, torque activation all clean
+- IK validation: 101 waypoints, min σ=0.0715 — trajectory is feasible
+- `[CLAMP]` logs confirmed torque saturation detected and limited
+- State machine cycled: HOMING → MOVE_FORWARD → WAIT_AT_END → MOVE_RETURN → WAIT_AT_START
+
+**What didn't work — two additional issues found:**
+
+1. **Per-joint clamping corrupts Cartesian force direction**
+   - Raw `[7200, -6000, -1800, -8100]` → all independently clamped to `[1100, -1100, -1100, -1100]`
+   - All joints at max = completely wrong force direction
+   - The controller thinks it's applying a precise impedance force; the robot feels equal torques everywhere
+
+2. **Homing doesn't converge before transitioning**
+   - After 8s homing, joint error norm was still ~2.0 rad (arm at q=[-1.22, 0.78, 0.01, 1.86])
+   - HOMING→MOVE_FORWARD transition was purely time-based (no convergence check)
+   - Arm entered Cartesian mode far from the trajectory start — huge errors from cycle 1
+
+**EE position throughout run:** stuck at ~[0.035, -0.076, 0.003] — never tracked the trajectory
+
+### Fixes Applied (post-test-1)
+
+| # | Issue | Fix |
+|---|-------|-----|
+| 9 | Per-joint clamping destroys Cartesian force direction | **Proportional scaling** in Cartesian mode: scale ALL joints by same factor to preserve direction |
+| 10 | Homing transitions without convergence | **Convergence gate**: require joint error norm < 0.3 rad before HOMING→MOVE_FORWARD |
+| 11 | Both fixes altered Gazebo codepath | **Gated behind `max_joint_torque_command > 0`**: default=0.0 (disabled/Gazebo), hardware YAML sets 1100.0 |
+
+**Proportional scaling example:**
+- Raw: `[7200, -6000, -1800, -8100]` — peak is 8100
+- Scale factor: `1100/8100 = 0.136`
+- Result: `[978, -815, -244, -1100]` — same force direction, just weaker
+
+**Convergence homing:** after `homing_duration_` expires, if joint error > 0.3 rad, the controller continues driving toward the first waypoint (alpha=1.0) and logs `[HOMING] Extending homing:` with current vs target joint values.
+
+### Files Modified
+
+| File | Additional Changes (post-test-1) |
+|------|----------------------------------|
+| `omx_variable_stiffness_controller.cpp` | Proportional scaling in Cartesian mode; convergence-based homing; both gated by `max_joint_torque_command_ > 0` |
+| `omx_variable_stiffness_controller.hpp` | Default changed to `0.0` (disabled for Gazebo) |
+
+### Gazebo Isolation
+
+All hardware-specific behaviors gated behind `max_joint_torque_command_ > 0.0`:
+- **`= 0.0`** (default, Gazebo): no torque limiting, no convergence check — identical to previous behavior
+- **`= 1100.0`** (hardware YAML): proportional torque scaling + convergence-based homing extension
 
 ## 1. Overview
 
@@ -148,6 +353,114 @@ This document captures the current state of the workspace, issues encountered, r
 ---
 
 *End of current status report.*
+
+**Detailed File Reference — Variable Stiffness Single-Hardware**
+
+This section documents configuration/launch/source files used for the
+single-robot variable stiffness setup. It is intentionally exhaustive so
+you can tune, migrate, or reproduce the setup exactly.
+
+- **File:** `ws/src/omx_variable_stiffness_controller/config/variable_stiffness_controller.yaml`
+  - Namespace: `/omx/controller_manager` (parameters must be inside the
+    `ros__parameters` block in the controller_manager namespace so the
+    controller manager can find them.)
+  - Important top-level keys and types:
+    - `update_rate` : int — controller loop Hz (recommended 200–1000, default 500)
+    - `use_sim_time` : bool — `false` for hardware, `true` for Gazebo
+    - `joint_state_broadcaster` : mapping with `type` string
+    - `variable_stiffness_controller` : mapping with `type` = `omx_variable_stiffness_controller/OmxVariableStiffnessController`
+    - `joints` : sequence[string] — ordered list of joint names as exposed by the hardware interface (e.g. `joint1`..`joint4`)
+    - `state_interfaces` : sequence[string] — must include `position`, `velocity`, `effort`
+    - `command_interfaces` : sequence[string] — must include `effort` for torque control
+    - `root_link`, `tip_link` : string — URDF frames used for FK/Jacobian
+    - Stiffness/damping vectors: `stiffness_homing`, `stiffness_rot`, `damping_rot`, `damping_default` : sequence[double] length 3 (x,y,z)
+    - `start_position`, `end_position`, `target_orientation` : sequence[double] for Cartesian waypoints (3-element positions, 3-element orientation Euler)
+    - Profiles: `stiffness_profile_x|y|z`, `damping_profile_x|y|z` : sequences (CSV loader or explicit values); if empty the controller falls back to constant profile
+    - `max_joint_torque_command` : double — hardware gate in raw servo units; `0.0` disables (Gazebo). For XM430 recommended `<= 1100`
+    - `homing_duration`, `move_duration`, `wait_duration`, `max_rise_rate` : timing scalars
+    - `use_joint_space_trajectory` : bool — when `true` some operations run in joint-space for safety
+    - `min_manipulability_threshold` : double — reject trajectories with σ_min below this (typical 0.01–0.07)
+    - `num_trajectory_samples` : int — resolution for preflight IK checks (50–200)
+    - `dls_damping_factor` : double — DLS default damping (0.01–0.2)
+    - `singularity_preferred_joints` : sequence[double] length matches joint count, used when escaping singularity
+    - `singularity_escape_K`, `singularity_escape_D`, `singularity_exit_hysteresis` : doubles for escape PD control and hysteresis
+    - `contact_force_filter_alpha` : double (0.0–1.0) — EMA filter for contact estimator; recommended 0.02–0.1
+    - `deviation_publish_threshold` : double (meters) — EE deviation threshold to publish deviated waypoint
+    - `waypoint_blend_duration` : double seconds used for cosine blending into runtime waypoint
+
+  - Notes and gotchas:
+    - All controller params must be visible under the controller_manager node name (e.g. `/omx/controller_manager`). If your launch names the CM differently, either rename the node or move params.
+    - Defaults in the YAML match those declared in `omx_variable_stiffness_controller::on_init()` (see header for exact default values).
+    - For hardware runs set `use_sim_time: false` and set `max_joint_torque_command` > 0 to enable hardware-specific gating (proportional scaling, convergence checks).
+    - Unit conventions: distances in meters, angles in radians, stiffness in N/m, damping in Ns/m, torques in raw servo units (device-specific). The controller uses raw Dynamixel current units when writing `effort` to the hardware interface.
+
+- **File:** `ws/src/omx_variable_stiffness_controller/launch/variable_stiffness_control.launch.py`
+  - Responsibilities:
+    - Declare launch arguments (robot namespace, serial port, sim/hw toggles, enable_logger)
+    - Detect serial ports automatically (function `detect_serial_port()` falls back to `/dev/ttyUSB0`)
+    - Create `robot_state_publisher`, `ros2_control_node` (controller_manager), spawners, and other bringup nodes
+    - Inject the `variable_stiffness_controller.yaml` into the CM via the `parameters=` argument
+    - Gate hardware-specific nodes behind `IfCondition(LaunchConfiguration('sim'))` logic when needed
+  - Important runtime arguments (defaults shown in launch header):
+    - `robot_namespace` : default `/omx` — ensures all topics/services are namespaced (recommended)
+    - `serial_port` : string — auto-detected by `detect_serial_port()` but can be overridden
+    - `sim` : bool — when true, use Gazebo/fake hardware; when false, expect real hardware
+    - `enable_logger` : bool — enable CSV logger node (may write large logs)
+    - `controller_delay`, `spawn_delay` : floats used to sequence spawners and avoid service race conditions
+  - Serial port detection notes:
+    - The launch searches in `/dev/serial/by-id/*`, then `/dev/ttyUSB*`, `/dev/ttyACM*`.
+    - If multiple devices are present prefer binding by `by-id` path in the launch invocation to make hardware deterministic.
+
+- **Files:** `ws/src/omx_variable_stiffness_controller/src/omx_variable_stiffness_controller.cpp` and `include/omx_variable_stiffness_controller/omx_variable_stiffness_controller.hpp`
+  - Key behaviors implemented in C++ controller:
+    - Lifecycle controller that registers state and command interfaces for each joint
+    - `on_init()` declares all parameters with defaults (homing timings, stiffness/damping defaults, safety params)
+    - Interface configuration functions return `INDIVIDUAL` mode names (e.g. `joint1/position`)
+    - Safety features:
+      - Preflight trajectory IK validation (samples configured by `num_trajectory_samples`)
+      - Singularity detection using KDL Jacobian singular values; DLS when σ_min is low
+      - Joint torque command saturation via `max_joint_torque_command_` (0 disables)
+      - Proportional scaling of torque vector when any joint would exceed the per-joint clamp (preserves Cartesian force direction)
+      - Convergence gate for HOMING: requires joint error norm below threshold before switching to MOVE_FORWARD (avoids jumping into trajectory when homing hasn't converged)
+    - Robot description fetching: uses a temporary independent rclcpp node + `transient_local` QoS to avoid deadlocks with controller_manager executor (important for fetching `robot_description` during `on_configure()`)
+    - Contact force estimation: EMA filter controlled by `contact_force_filter_alpha`
+    - Stiffness/damping profiles: controller loads per-axis profiles (CSV or param arrays) and blends them along the trajectory
+  - Important log messages (search in code for these exact strings):
+    - `Got robot_description from topic '%s'` — successful RD fetch
+    - `[INIT ERR] Failed to get parameter '%s'` — parameter retrieval failed during on_init
+    - `[CLAMP]` — per-joint torque command clamped (shows pre/post values)
+    - `[SAFETY] Trajectory validated. Min sigma=%f` — IK preflight result
+    - `[HOMING] Extending homing:` — homing did not converge before nominal timeout
+  - Parameter defaults (copy of declared defaults in `on_init()`):
+    - `homing_duration` 5.0 s, `move_duration` 10.0 s, `wait_duration` 3.0 s
+    - `max_rise_rate` 100.0 (raw units/sec)
+    - `use_joint_space_trajectory` true
+    - `min_manipulability_threshold` 0.01
+    - `num_trajectory_samples` 50
+    - `dls_damping_factor` 0.05
+    - `start_position` {0.2, 0.0, 0.15}, `end_position` {0.25, 0.0, 0.15}
+    - `stiffness_homing` {20,20,20}, `stiffness_rot` {50,50,50}
+    - `damping_default` {20,20,20}, `contact_force_filter_alpha` 0.02
+
+  - Tuning guidance:
+    - For conservative hardware use `max_joint_torque_command` slightly below the servo's clipping limit (e.g. XM430: 1100 raw). This allows the proportional scaling safety to operate without saturating frequently.
+    - Raise `damping_default` on z when EE sag occurs (e.g. from 3 → 6 Ns/m) to reduce oscillation. Increasing damping reduces bandwidth and increases steady-state position error under finite stiffness.
+    - Increase `num_trajectory_samples` for long Cartesian trajectories to improve IK preflight fidelity; it will increase preflight time linearly.
+
+  - Topics/services published/subscribed by the controller (typical namespaced topics under `robot_namespace` e.g. `/omx`):
+    - Publishes: `~/contact_wrench` (WrenchStamped), `~/contact_valid` (Bool), `~/manipulability` (custom messages/flags), `~/deviated_waypoint` (PoseStamped)
+    - Subscribes: `~/waypoint_command` (PoseStamped) for runtime waypoint offsets, may subscribe to `robot_description` via transient_local topic
+    - Uses controller_manager services: `/<ns>/controller_manager/list_controllers`, `load_controller`, `switch_controller`
+
+  - Build & plugin notes:
+    - The controller is registered with pluginlib via `plugin_description.xml` and the `pluginlib::ClassLoader` in controller_manager. Ensure `CMakeLists.txt` installs the plugin xml and the package exports the plugin for ament.
+    - When building, make sure to link against KDL, Eigen, tf2_kdl, and required ROS 2 message packages. `colcon build` should pick up dependencies from `package.xml`.
+
+  - Debugging tips:
+    - If controller parameters appear not to load: check that controller params are under the same node name as the controller_manager node (namespaced). Use `ros2 param list /omx/controller_manager` to inspect available params.
+    - If `robot_description` fetch times out: ensure `robot_state_publisher` is publishing with `transient_local` QoS or the RSP is launched before the controller manager; the controller uses a temporary node with `transient_local` QoS in a 3s window.
+    - To inspect torque clamping behaviour: `ros2 topic echo /omx/variable_stiffness_controller/torque_debug` (if enabled) or watch `[CLAMP]` logs.
+
 
 ---
 

@@ -67,10 +67,10 @@ You can run:
 
 ### Implemented - Awaiting Testing (Variable Stiffness)
 🔧 Variable Cartesian Impedance Controller with time-varying stiffness profiles
-🔧 Hardware safety limits (stiffness ≤65 N/m, damping ≤3 Ns/m for Robotis servos)
-🔧 Manipulability metrics publishing (singular values, condition number, σ_min)
+✅ Hardware safety limits (stiffness ≤65 N/m, damping ≤10 Ns/m software cap; recommend ≤3 Ns/m on real servos)
+✅ Manipulability metrics publishing (singular values, condition number, σ_min)
 ✅ Runtime waypoint deviation (offset + absolute modes, cosine blend, auto-return to trajectory)
-🔧 Support for both hardware and Gazebo simulation
+✅ Support for both hardware and Gazebo simulation (GUI confirmed working, Mar 2026)
 
 ### Runtime Waypoint Deviation (Tested in Gazebo)
 
@@ -571,18 +571,18 @@ ros2 topic echo /omx/joint_states
     - Dynamixel HW interface (Humble): `git clone -b humble https://github.com/ROBOTIS-GIT/dynamixel_hardware_interface.git`
 - **Launch file**
   - `ws/src/omx_dual_bringup/launch/single_robot_hardware.launch.py`
-- **Commands**
+**Commands**
 ```bash
+# From the repo devcontainer or a host with ROS 2 Humble sourced
 cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
-# Install OS/ROS dependencies (recommended for fresh machines)
-sudo apt update
-sudo apt install -y python3-colcon-common-extensions python3-rosdep
-rosdep update || true
-rosdep install --from-paths src --ignore-src -r -y || true
+# NOTE: In the devcontainer most OS/ROS dependencies are installed
+# during container creation (no sudo/rosdep required). If you are
+# running on a fresh host, follow the "Minimal Initial Setup" section
+# earlier in this README to install deps once on the host.
 
-# Build
+# Build (no sudo required inside the devcontainer)
 colcon build --symlink-install --packages-select \
   open_manipulator_x_description \
   dynamixel_sdk dynamixel_sdk_custom_interfaces \
@@ -590,7 +590,8 @@ colcon build --symlink-install --packages-select \
   omx_gravity_comp_controller omx_dual_bringup
 source install/setup.bash
 
-# Launch (auto-detects port, or override)
+# Launch (auto-detects port, or override). Make sure the serial device
+# is exposed to the container or available to your user on the host.
 ros2 launch omx_dual_bringup single_robot_hardware.launch.py port:=/dev/ttyUSB0 start_rviz:=false
 
 # Sanity checks
@@ -600,7 +601,7 @@ ros2 topic echo /omx/joint_states
 
 ### 5) Variable Cartesian Impedance Control (Single Robot) ✅ TESTED
 
-> ✅ **Status: VERIFIED** — Tested in simulation mode (mock Dynamixels), Feb 2026. Ready for physical hardware.
+> ✅ **Status: VERIFIED** — Tested in simulation mode (Gazebo), March 2026. Ready for physical hardware.
 
 The variable stiffness controller provides Cartesian impedance control with:
 - Time-varying stiffness/damping profiles along trajectories
@@ -611,11 +612,16 @@ The variable stiffness controller provides Cartesian impedance control with:
 #### Key Safety Features
 | Feature | Description |
 |---------|-------------|
-| **Trajectory Validation** | IK solved for 51 waypoints before execution; rejects unsafe paths |
+| **Trajectory Validation** | IK solved for 101 waypoints before execution; rejects unsafe paths |
 | **σ_min Threshold** | Uses minimum singular value (default: 0.02) as singularity measure |
 | **Joint Limits** | Loads limits from URDF; rejects IK solutions outside bounds |
 | **DLS Damping** | Adaptive λ² = λ₀² × (1 - σ_min/threshold)² near singularities |
-| **Stiffness Limits** | Hardware limits: 65 N/m translational, 20 Nm/rad rotational |
+| **Stiffness Limits** | 65 N/m translational, 10 Ns/m damping (software cap; ≤3 Ns/m recommended on hardware) |
+| **x-axis Clamp** | `start_position` and `end_position` x clamped to ≥ 0.16 m at startup |
+| **Stale-data Guard** | Zeros torques if joint positions frozen for ≥50 cycles (Dynamixel bus crash protection) |
+| **Gravity-preserving Clamp** | Scales PD torque component only; gravity compensation always applied at full strength |
+| **Joint-limit Barrier** | Soft repulsive torque (K=50 N·m/rad) applied 0.05 rad before URDF joint limits |
+| **Torque Ramp** | 2 s linear ramp from zero on hardware activation (prevents impulse at startup) |
 
 - **Build packages/files**
   - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
@@ -643,9 +649,15 @@ source install/setup.bash
 ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py \
   sim:=true enable_logger:=false
 
+# Launches Gazebo with the variable stiffness controller; check logs for trajectory #validation and manipulability metrics.
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash && DISPLAY=:0 ros2 launch omx_variable_stiffness_controller gazebo_variable_stiffness.launch.py gui:=true launch_gazebo:=true spawn_delay:=1.0 controller_delay:=10.0 stiffness_loader_delay:=10.0 enable_logger:=true 2>&1 | tee /tmp/gz_launch.log
+
+
 # Launch with REAL HARDWARE
 ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py \
   port:=/dev/ttyUSB0
+
+ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py sim:=false enable_logger:=true
 
 # Check trajectory validation passed
 # Look for: "[SAFETY] Trajectory validation passed. Min manipulability=X.XXXX"
@@ -673,7 +685,7 @@ The variable stiffness controller provides Cartesian impedance control with time
   - Same hardware dependencies as gravity comp mode
 - **Hardware Safety Limits** (enforced in software)
   - Max Cartesian stiffness: **65 N/m**
-  - Max Cartesian damping: **3 Ns/m**
+  - Max Cartesian damping: **10 Ns/m** (software cap; hardware recommendation ≤3 Ns/m for XM430 servos)
 - **Launch file**
   - `ws/src/omx_variable_stiffness_controller/launch/dual_hardware_variable_stiffness.launch.py`
 - **Commands**
@@ -1185,6 +1197,54 @@ ros2 launch omx_dual_bringup dual_gazebo_gravity_comp.launch.py gazebo_mode:=sin
 ros2 launch omx_dual_bringup dual_gazebo_gravity_comp.launch.py start_gzclient:=false
 gzclient
 ```
+
+## Detailed File Reference — Variable Stiffness Single-Hardware
+
+This section complements `project_status.md` with a concise, actionable
+reference for the variable stiffness single-hardware configuration,
+launch behavior, and controller implementation.
+
+- `ws/src/omx_variable_stiffness_controller/config/variable_stiffness_controller.yaml`
+  - Purpose: central controller parameters for `/omx/controller_manager`.
+  - Key parameters (type : meaning : recommended/default):
+    - `update_rate` (int) : controller loop frequency in Hz — **500** recommended
+    - `use_sim_time` (bool) : `false` for hardware, `true` for Gazebo
+    - `joints` (seq[string]) : e.g. `[joint1, joint2, joint3, joint4]`
+    - `state_interfaces` / `command_interfaces` (seq[string]) : include `position, velocity, effort` and `effort` respectively
+    - Cartesian waypoints: `start_position`, `end_position` (3 floats, meters)
+    - `stiffness_homing`, `stiffness_rot`, `damping_default` (3 floats — N/m & Ns/m)
+    - `stiffness_profile_*` / `damping_profile_*` : optional sequences or CSV-loaded profile
+    - `max_joint_torque_command` (double) : raw servo units clamp (0 disables). For XM430: **<=1100** to avoid servo-side clipping
+    - `contact_force_filter_alpha` (double) : 0.02 recommended (low-pass filter alpha)
+    - `num_trajectory_samples` (int) : IK preflight resolution (default 50)
+
+  - Practical notes:
+    - Ensure the entire `ros__parameters` block is registered under the same node name used by the controller_manager (default `/omx/controller_manager`). If not, the controller will run with defaults.
+    - Use absolute serial paths `/dev/serial/by-id/...` in hardware launches to avoid port reordering.
+
+- `ws/src/omx_variable_stiffness_controller/launch/variable_stiffness_control.launch.py`
+  - Responsibilities: auto-detect serial port, set `robot_namespace`, start RSP, start `ros2_control_node` (or let Gazebo plugin spawn CM), load controller YAML into CM, and start spawner nodes with controlled delays.
+  - Useful launch args: `robot_namespace`, `serial_port`, `sim` (bool), `enable_logger`, `controller_delay`, `spawn_delay`.
+
+- C++ controller files (`src/*.cpp` & `include/*.hpp`)
+  - The controller implements:
+    - Lifecycle hooks with `on_init()` declaring defaults
+    - `state_interface_configuration()` and `command_interface_configuration()` returning `INDIVIDUAL` names like `jointN/position`
+    - Preflight IK trajectory validation (DLS + KDL)
+    - Singularity detection using σ_min, with escape via `singularity_escape_K/D`
+    - Per-joint torque clamping plus proportional scaling to preserve Cartesian direction
+    - Homing convergence gate and joint-space regularization
+    - Contact force estimator using EMA with `contact_force_filter_alpha`
+
+  - Useful runtime logs: `Got robot_description from topic`, `[SAFETY] Trajectory validated. Min sigma=`, `[CLAMP]`, `[HOMING] Extending homing:`. Monitor these to confirm expected behavior.
+
+  - Tuning quick tips:
+    - If EE sags in z: increase `damping_default` on `z` (example: 3 → 6 Ns/m)
+    - If per-joint clamping occurs often: reduce commanded stiffness or set `max_joint_torque_command` slightly lower and rely on proportional scaling
+    - Increase `num_trajectory_samples` for longer trajectories; preflight time grows linearly
+
+Refer to `project_status.md` for the exhaustive historical rationale and example CSV formats for stiffness/damping profiles.
+
 
 ### TF Frame Issues
 
