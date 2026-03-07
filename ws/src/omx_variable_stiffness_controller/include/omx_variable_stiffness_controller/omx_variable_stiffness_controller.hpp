@@ -84,6 +84,18 @@ private:
   std::string tip_link_;
   std::string robot_description_node_{"/controller_manager"};
   double torque_scale_{1.0};
+  double max_joint_torque_command_{0.0};  // Per-joint saturation; 0 = disabled (Gazebo)
+
+  // Torque ramp: on hardware, ramp output from 0→1 over torque_ramp_duration_
+  // seconds after activation to prevent impulse from gravity comp model mismatch.
+  double torque_ramp_duration_{2.0};   // seconds (0 = disabled i.e. Gazebo)
+  double activation_time_{0.0};        // wall time of activation
+
+  // Stale-data detector: if all joint positions are identical for N consecutive
+  // cycles, the Dynamixel bus has crashed. Zero torques to prevent blind driving.
+  static constexpr size_t STALE_THRESHOLD = 50;  // cycles (~100ms at 500Hz)
+  size_t stale_position_count_{0};
+  KDL::JntArray q_prev_;  // previous cycle's positions
 
   // Trajectory parameters
   double homing_duration_{5.0};
@@ -97,7 +109,7 @@ private:
 
   // Hardware safety limits for Robotis servos
   static constexpr double MAX_CARTESIAN_STIFFNESS = 65.0;   // N/m max
-  static constexpr double MAX_CARTESIAN_DAMPING = 3.0;      // Ns/m max
+  static constexpr double MAX_CARTESIAN_DAMPING = 10.0;     // Ns/m max (raised for z-axis)
   static constexpr double MAX_ROTATIONAL_STIFFNESS = 20.0;  // Nm/rad max
   static constexpr double MAX_ROTATIONAL_DAMPING = 1.0;     // Nms/rad max
 
@@ -149,6 +161,8 @@ private:
   // Current stiffness/damping (modulated during motion)
   KDL::Vector K_trans_current_;
   KDL::Vector D_trans_current_;
+  KDL::Vector K_rot_current_;    // Per-state rotational stiffness (zeroed during HOMING)
+  KDL::Vector Kd_ang_current_;   // Per-state rotational damping
 
   // Stiffness profiles (loaded from parameter server)
   std::vector<double> stiffness_profile_x_;
@@ -252,10 +266,11 @@ private:
 
   // Joint-space homing and regularization (prevents singularity traversal)
   KDL::JntArray q_at_activation_;       // Joint positions when controller activated
-  double homing_joint_K_{15.0};         // Joint-space PD gain during HOMING
-  double homing_joint_D_{2.0};          // Joint-space damping during HOMING
+  double homing_joint_K_{15.0};         // Joint-space PD gain during HOMING (Gazebo default)
+  double homing_joint_D_{2.0};          // Joint-space damping during HOMING (Gazebo default)
   double trajectory_joint_reg_K_{3.0};  // Joint-space regularization gain during MOVE
   double trajectory_joint_reg_D_{0.5};  // Joint-space regularization damping
+  double homing_converge_thresh_{0.05}; // EE position convergence threshold for homing (m)
 
   // Cached interface handles
   std::vector<hardware_interface::LoanedStateInterface *> pos_if_;

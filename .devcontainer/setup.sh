@@ -10,6 +10,7 @@ source /opt/ros/humble/setup.bash
 echo "Installing apt dependencies..."
 # python3-serial provides pyserial for accessing /dev/tty* devices from Python tools/scripts.
 apt-get update
+# X/Qt dependencies for gzclient (Qt 'xcb' platform plugin)
 apt-get install -y \
     python3-colcon-common-extensions \
     ros-humble-moveit \
@@ -26,8 +27,7 @@ apt-get install -y \
     libserial-dev \
     python3-serial \
     x11vnc \
-    novnc
-    # X/Qt dependencies for gzclient (Qt 'xcb' platform plugin)
+    novnc \
     libxcb1 \
     libxcb-xinerama0 \
     libxkbcommon-x11-0 \

@@ -1,12 +1,17 @@
 # ============================================================
 #  gazebo_variable_stiffness.yaml
 #  Gazebo-specific controller_manager config for variable stiffness
-#  RADIAL PUSH TEST — 6 cm, z = 0.10 m, 100-waypoint bell profile
+#  RADIAL PUSH TEST — 16 cm x-travel (0.30→0.14), z=0.15 m
+#  100-waypoint bell stiffness profile
 # ============================================================
 #
 #  This file is loaded by the gazebo_ros2_control plugin via the
-#  <parameters> tag in the URDF xacro.  ALL controller params must
-#  live under /omx/controller_manager so the plugin can set them.
+#  <parameters> tag in the URDF xacro.
+#
+#  ★ To change the trajectory, edit start_position / end_position
+#    in the /omx/variable_stiffness_controller section below (NOT
+#    in the /omx/controller_manager section, which the controller
+#    does not read).
 
 /omx/controller_manager:
   ros__parameters:
@@ -18,14 +23,10 @@
 
     variable_stiffness_controller:
       type: omx_variable_stiffness_controller/OmxVariableStiffnessController
-      # Ensure controller_manager has the essential trajectory params
-      # (some environments inject params only under the controller_manager
-      # node; duplicating them here guarantees the controller sees them).
-      variable_stiffness_controller.start_position: [0.30, 0.02, 0.10]
-      variable_stiffness_controller.end_position:   [0.14, 0.02, 0.10]
-      variable_stiffness_controller.target_orientation: [0.0, 0.5, 0.0]
-      variable_stiffness_controller.num_trajectory_samples: 100
-      variable_stiffness_controller.use_joint_space_trajectory: true
+      # NOTE: Trajectory parameters (start_position, end_position, etc.) are
+      # NOT read from here. Edit them in the /omx/variable_stiffness_controller
+      # section below. These controller_manager-level dotted keys are ignored
+      # by the controller's on_configure() which reads from its own node namespace.
 
 /omx/variable_stiffness_controller:
   ros__parameters:
@@ -49,12 +50,13 @@
     robot_description_node: "/omx/robot_state_publisher"
     torque_scale: 1.0
 
-    # ── Trajectory (radial line at z = 10 cm) ────────────────
-    # Centered in the best-conditioned workspace zone (sigma_min > 0.05)
-    # to avoid near-singular configurations at elbow-cramped and
-    # near-extension limits.  6 cm travel, 100 waypoints (0.6 mm/step).
-    start_position: [0.30, 0.02, 0.10]
-    end_position:   [0.14, 0.02, 0.10]
+    # ── Trajectory ─────────────────────────────────────────────────────────
+    # ★ EDIT TRAJECTORY ENDPOINTS HERE (this is the section the controller reads)
+    # Centred in the best-conditioned workspace zone (sigma_min > 0.05) to
+    # avoid near-singular configs at elbow-cramped and near-extension limits.
+    # 16 cm x-travel (0.30 → 0.14), z=0.15, 100 waypoints (1.6 mm/step).
+    start_position: [0.32, 0.02, 0.15]
+    end_position:   [0.19, 0.02, 0.15]
     target_orientation: [0.0, 0.5, 0.0]
 
     homing_duration: 8.0
@@ -62,8 +64,8 @@
     wait_duration:   3.0
 
     # ── Homing / Wait impedance ──────────────────────────────
-    stiffness_homing: [50.0, 50.0, 50.0]
-    damping_default:  [3.0,  3.0,  3.0]
+    stiffness_homing: [15.0, 15.0, 25.0]
+    damping_default:  [2.0,  2.0,  3.0]   # z raised ×2 to reduce z-tracking sag
     stiffness_rot:    [15.0, 15.0, 15.0]
     damping_rot:      [0.8,  0.8,  0.8]
     max_rise_rate: 50.0
@@ -134,21 +136,21 @@
       1.276, 1.262, 1.249, 1.238, 1.228, 1.22, 1.213, 1.207, 1.203, 1.201,
       1.2]
 
-    damping_profile_z:
-      [1.2, 1.201, 1.203, 1.207, 1.213, 1.22, 1.228, 1.238, 1.249, 1.262,
-      1.276, 1.292, 1.308, 1.326, 1.345, 1.365, 1.386, 1.407, 1.43, 1.453,
-      1.476, 1.501, 1.525, 1.55, 1.575, 1.6, 1.625, 1.65, 1.675, 1.699,
-      1.724, 1.747, 1.77, 1.793, 1.814, 1.835, 1.855, 1.874, 1.892, 1.908,
-      1.924, 1.938, 1.951, 1.962, 1.972, 1.98, 1.987, 1.993, 1.997, 1.999,
-      2.0, 1.999, 1.997, 1.993, 1.987, 1.98, 1.972, 1.962, 1.951, 1.938,
-      1.924, 1.908, 1.892, 1.874, 1.855, 1.835, 1.814, 1.793, 1.77, 1.747,
-      1.724, 1.699, 1.675, 1.65, 1.625, 1.6, 1.575, 1.55, 1.525, 1.501,
-      1.476, 1.453, 1.43, 1.407, 1.386, 1.365, 1.345, 1.326, 1.308, 1.292,
-      1.276, 1.262, 1.249, 1.238, 1.228, 1.22, 1.213, 1.207, 1.203, 1.201,
-      1.2]
+    damping_profile_z:  # z raised for better vertical trajectory tracking (3.0–7.0 bell)
+      [3.0, 3.126, 3.251, 3.376, 3.501, 3.626, 3.75, 3.873, 3.995, 4.116,
+      4.236, 4.355, 4.472, 4.589, 4.703, 4.816, 4.927, 5.036, 5.143, 5.248,
+      5.351, 5.452, 5.55, 5.645, 5.738, 5.828, 5.916, 6.0, 6.082, 6.161,
+      6.236, 6.308, 6.377, 6.443, 6.505, 6.564, 6.619, 6.671, 6.719, 6.764,
+      6.804, 6.841, 6.874, 6.904, 6.929, 6.951, 6.968, 6.982, 6.992, 6.998,
+      7.0, 6.998, 6.992, 6.982, 6.968, 6.951, 6.929, 6.904, 6.874, 6.841,
+      6.804, 6.764, 6.719, 6.671, 6.619, 6.564, 6.505, 6.443, 6.377, 6.308,
+      6.236, 6.161, 6.082, 6.0, 5.916, 5.828, 5.738, 5.645, 5.55, 5.452,
+      5.351, 5.248, 5.143, 5.036, 4.927, 4.816, 4.703, 4.589, 4.472, 4.355,
+      4.236, 4.116, 3.995, 3.873, 3.75, 3.626, 3.501, 3.376, 3.251, 3.126,
+      3.0]
 
     # ── Safety / singularity ─────────────────────────────────
-    use_joint_space_trajectory: true
+    use_joint_space_trajectory: false
     num_trajectory_samples: 100
     min_manipulability_threshold: 0.01
     dls_damping_factor: 0.1

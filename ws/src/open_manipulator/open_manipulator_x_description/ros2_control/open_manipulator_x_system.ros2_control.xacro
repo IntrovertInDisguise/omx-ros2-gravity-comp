@@ -47,6 +47,7 @@
             <param name="set_dynamixel_data_srv_name">dynamixel_hardware_interface/set_dxl_data</param>
             <param name="reboot_dxl_srv_name">dynamixel_hardware_interface/reboot_dxl</param>
             <param name="set_dxl_torque_srv_name">dynamixel_hardware_interface/set_dxl_torque</param>
+            <param name="disable_torque_at_init">true</param>
 
               <!-- This parameter is used for a prismatic joint
             that operates through a revolute mechanism. If the joint does not require this configuration, this parameter can be removed. -->
@@ -109,11 +110,14 @@
         <param name="type">dxl</param>
         <param name="ID">11</param>
         <command_interface name="Goal Position"/>
+        <command_interface name="Goal Current"/>
         <state_interface name="Present Position"/>
         <state_interface name="Present Velocity"/>
         <state_interface name="Present Current"/>
         <state_interface name="Torque Enable"/>
         <state_interface name="Present Input Voltage"/>
+        <param name="Operating Mode">0</param>
+        <param name="Torque Enable">1</param>
         <param name="Position P Gain">800</param>
         <param name="Position I Gain">100</param>
         <param name="Position D Gain">100</param>
@@ -127,11 +131,14 @@
         <param name="type">dxl</param>
         <param name="ID">12</param>
         <command_interface name="Goal Position"/>
+        <command_interface name="Goal Current"/>
         <state_interface name="Present Position"/>
         <state_interface name="Present Velocity"/>
         <state_interface name="Present Current"/>
         <state_interface name="Torque Enable"/>
         <state_interface name="Present Input Voltage"/>
+        <param name="Operating Mode">0</param>
+        <param name="Torque Enable">1</param>
         <param name="Position P Gain">800</param>
         <param name="Position I Gain">100</param>
         <param name="Position D Gain">100</param>
@@ -145,11 +152,14 @@
         <param name="type">dxl</param>
         <param name="ID">13</param>
         <command_interface name="Goal Position"/>
+        <command_interface name="Goal Current"/>
         <state_interface name="Present Position"/>
         <state_interface name="Present Velocity"/>
         <state_interface name="Present Current"/>
         <state_interface name="Torque Enable"/>
         <state_interface name="Present Input Voltage"/>
+        <param name="Operating Mode">0</param>
+        <param name="Torque Enable">1</param>
         <param name="Position P Gain">800</param>
         <param name="Position I Gain">100</param>
         <param name="Position D Gain">100</param>
@@ -163,11 +173,14 @@
         <param name="type">dxl</param>
         <param name="ID">14</param>
         <command_interface name="Goal Position"/>
+        <command_interface name="Goal Current"/>
         <state_interface name="Present Position"/>
         <state_interface name="Present Velocity"/>
         <state_interface name="Present Current"/>
         <state_interface name="Torque Enable"/>
         <state_interface name="Present Input Voltage"/>
+        <param name="Operating Mode">0</param>
+        <param name="Torque Enable">1</param>
         <param name="Position P Gain">800</param>
         <param name="Position I Gain">100</param>
         <param name="Position D Gain">100</param>
