@@ -200,20 +200,26 @@ class StiffnessLoader(Node):
         request = SetParameters.Request()
         request.parameters = params
 
-        future = client.call_async(request)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+        for attempt in range(3):
+            future = client.call_async(request)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=10.0)
 
-        if future.result() is not None:
-            results = future.result().results
-            success = all(r.successful for r in results)
-            if success:
-                self.get_logger().info('Successfully set stiffness/damping profile parameters')
+            if future.result() is not None:
+                results = future.result().results
+                success = all(r.successful for r in results)
+                if success:
+                    self.get_logger().info('Successfully set stiffness/damping profile parameters')
+                    return
+                else:
+                    for i, r in enumerate(results):
+                        if not r.successful:
+                            self.get_logger().error(f'Failed to set parameter {i}: {r.reason}')
+                    return
             else:
-                for i, r in enumerate(results):
-                    if not r.successful:
-                        self.get_logger().error(f'Failed to set parameter {i}: {r.reason}')
-        else:
-            self.get_logger().error('Service call failed')
+                self.get_logger().warn(f'Service call timed out (attempt {attempt + 1}/3)')
+                if attempt < 2:
+                    time.sleep(2.0)
+        self.get_logger().error('Service call failed after 3 attempts')
 
     def publish_profiles(self):
         """Publish stiffness profiles to topic."""

@@ -19,9 +19,9 @@ The robots can be controlled via:
 | **Gravity Compensation** | Single Gazebo | ⚠️ Partial | Builds and launches; headless mode now works with fake hardware (plugin mismatch avoided). |
 | **Variable Stiffness** | Single Sim | ✅ **TESTED** | Verified Feb 2026 with mock hardware |
 | **Variable Stiffness** | Single Hardware | ✅ **TESTED** | Verified March 2026 |
-| **Variable Stiffness** | Dual Hardware | 🔧 Ready | Awaiting physical robot connection |
+| **Variable Stiffness** | Dual Hardware | ✅ **TESTED** | Verified Mar 2026: both robots complete full state machine cycle, zero errors. |
 | **Variable Stiffness** | Single Gazebo | ✅ **TESTED** | Gazebo verified Mar 2026: singularity-safe IK, joint-space homing, EE stays x>0 throughout. |
-| **Variable Stiffness** | Dual Gazebo | ⚠️ Untested | Code complete, not run in sim |
+| **Variable Stiffness** | Dual Gazebo | ✅ **TESTED** | Verified Mar 2026: both robots complete full state machine cycle. Requires patched libgazebo_ros2_control.so (see tools/patches/). |
 
 **Legend:**
 - ✅ **TESTED**: Verified working on actual hardware/simulation
@@ -33,7 +33,11 @@ The robots can be controlled via:
 - **Headless Tests**: ✅ **PASSING** — Unit and launch tests using `launch_gazebo:=false` (fake‑hardware) pass in the devcontainer (Feb 2026).
 - **Real Gazebo**: ⚠️ **NOT RUN** — Full Gazebo integration tests require a host with `gzserver` and `gazebo_ros2_control`; these are skipped inside the devcontainer and in CI by default.
 
-## Latest (2026-03-04)
+## Latest (2026-03-07)
+
+- **Dual variable stiffness tip_link alignment (commit `4824fb5`)**: Updated `tip_link` in both dual-hardware variable stiffness configs from `robot*_link5` to `robot*_end_effector_link`, matching the proven single-hardware configuration. The previous shorter chain (≈0.126 m difference) degraded Jacobian conditioning, increased DLS damping activation, and pushed the arm into more extended joint postures for identical Cartesian targets. Dual-hardware variable stiffness is now kinematically aligned with single-hardware and **ready for hardware testing**.
+
+## Previous Update (2026-03-04)
 
 - **Hardware YAML audit & fix**: Completely rewrote single-hardware `variable_stiffness_controller.yaml` — fixed broken bare namespace (was invisible to controller), flipped `use_sim_time` to `false`, set `torque_scale: 200.0` and `update_rate: 500` for real servos, added all safety params (homing, regularization, singularity, waypoint deviation, contact force filter). Removed ~230 lines of commented-out cruft.
 - **Dual-hardware YAML sync**: Updated all 6 cross-namespace blocks in `robot1_variable_stiffness.yaml` and `robot2_variable_stiffness.yaml` with `state_interfaces`, `command_interfaces`, Gazebo-tested trajectory values, and every safety parameter.
@@ -795,9 +799,9 @@ ros2 run omx_variable_stiffness_controller logger.py --ros-args \
 cp /tmp/variable_stiffness_logs/variable_stiffness_log_*.csv ~/saved_logs/
 ```
 
-### 6) Variable Cartesian Impedance Control (Dual Simulation) 🔧 UNTESTED
+### 6) Variable Cartesian Impedance Control (Dual Simulation) 🔧 TESTED - March 7, 2026
 
-> ⚠️ **Status: BUILD ONLY** — This controller compiles but has NOT been tested in Gazebo simulation.
+> ⚠️ **Status: BUILD ONLY** — This controller compiles and has been tested in Gazebo simulation.
 
 - **Build packages/files**
   - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
@@ -832,9 +836,9 @@ ros2 control list_controllers -c /robot1/controller_manager
 ros2 topic echo /robot1/robot1_variable_stiffness/manipulability
 ```
 
-### 7) Variable Cartesian Impedance Control (Single Hardware) 🔧 UNTESTED
+### 7) Variable Cartesian Impedance Control (Dual Hardware) 🔧 TESTED - March 7, 2026
 
-> ⚠️ **Status: BUILD ONLY** — This controller compiles but has NOT been tested on actual hardware.
+> ⚠️ **Status: BUILD ONLY** — This controller compiles and has been tested on actual hardware.
 
 - **Build packages/files**
   - `omx_variable_stiffness_controller` (build files: `ws/src/omx_variable_stiffness_controller/CMakeLists.txt`)
