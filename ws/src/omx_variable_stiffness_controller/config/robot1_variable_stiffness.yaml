@@ -36,9 +36,9 @@
       - effort
 
     root_link: world
-    tip_link: robot1_link5
+    tip_link: robot1_end_effector_link
     robot_description_node: "/robot1/robot_state_publisher"
-    torque_scale: 200.0
+    torque_scale: 180.0
 
     # ── Trajectory ───────────────────────────────────────────
     start_position: [0.28, 0.0, 0.20]
@@ -46,8 +46,8 @@
     target_orientation: [0.0, 0.0, 0.0]
 
     homing_duration: 8.0
-    move_duration:   15.0
-    wait_duration:   3.0
+    move_duration:   6.0
+    wait_duration:   2.0
 
     # ── Homing / Wait impedance ──────────────────────────────
     stiffness_homing: [50.0, 50.0, 50.0]
@@ -126,7 +126,7 @@
     homing_converge_threshold: 0.05
 
     # ── Per-joint torque saturation ──────────────────────────
-    max_joint_torque_command: 1100.0
+    max_joint_torque_command: 900.0
 
     # ── Waypoint deviation ───────────────────────────────────
     waypoint_blend_duration: 2.0

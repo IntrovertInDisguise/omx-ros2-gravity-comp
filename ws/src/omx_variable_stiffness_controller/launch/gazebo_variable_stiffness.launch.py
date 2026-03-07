@@ -180,6 +180,11 @@ def generate_launch_description():
             controller_config,
             {
                 'robot_description': ParameterValue(urdf, value_type=str),
+                # Also pass as prefixed parameter so the controller's on_configure()
+                # can retrieve it via get_parameter("robot_description") directly,
+                # avoiding any executor-deadlock topic subscription.
+                'variable_stiffness_controller.robot_description':
+                    ParameterValue(urdf, value_type=str),
                 'use_sim_time': True,
             },
         ],
@@ -188,11 +193,22 @@ def generate_launch_description():
     )
 
     # Ensure Gazebo can find ROS plugin libraries when it starts.
+    # gzserver is launched as a subprocess and may not inherit the full
+    # LD_LIBRARY_PATH from the parent shell, causing libgazebo_msgs__rosidl_*
+    # not found errors (exit 255).  Propagate the ROS lib paths explicitly.
     plugin_path = SetEnvironmentVariable(
         'GAZEBO_PLUGIN_PATH',
         [
             '/opt/ros/humble/lib:',
             EnvironmentVariable('GAZEBO_PLUGIN_PATH', default_value='')
+        ]
+    )
+    ld_library_path = SetEnvironmentVariable(
+        'LD_LIBRARY_PATH',
+        [
+            '/opt/ros/humble/lib/x86_64-linux-gnu:',
+            '/opt/ros/humble/lib:',
+            EnvironmentVariable('LD_LIBRARY_PATH', default_value='')
         ]
     )
 
@@ -427,6 +443,7 @@ def generate_launch_description():
         *declared_arguments,
         set_libgl_sw,
         plugin_path,
+        ld_library_path,
         # Core nodes
         robot_state_publisher,
         ros2_control_node,

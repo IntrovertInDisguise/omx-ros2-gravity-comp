@@ -18,7 +18,7 @@ The robots can be controlled via:
 | **Gravity Compensation** | Dual Gazebo | ⚠️ Partial | Builds and launches; headless mode now works with fake hardware (plugin mismatch avoided). |
 | **Gravity Compensation** | Single Gazebo | ⚠️ Partial | Builds and launches; headless mode now works with fake hardware (plugin mismatch avoided). |
 | **Variable Stiffness** | Single Sim | ✅ **TESTED** | Verified Feb 2026 with mock hardware |
-| **Variable Stiffness** | Single Hardware | 🔧 Ready | Awaiting physical robot connection |
+| **Variable Stiffness** | Single Hardware | ✅ **TESTED** | Verified March 2026 |
 | **Variable Stiffness** | Dual Hardware | 🔧 Ready | Awaiting physical robot connection |
 | **Variable Stiffness** | Single Gazebo | ✅ **TESTED** | Gazebo verified Mar 2026: singularity-safe IK, joint-space homing, EE stays x>0 throughout. |
 | **Variable Stiffness** | Dual Gazebo | ⚠️ Untested | Code complete, not run in sim |
