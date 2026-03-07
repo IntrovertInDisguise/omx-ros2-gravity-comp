@@ -35,7 +35,14 @@ The robots can be controlled via:
 
 ## Latest (2026-03-07)
 
-- **Dual variable stiffness tip_link alignment (commit `4824fb5`)**: Updated `tip_link` in both dual-hardware variable stiffness configs from `robot*_link5` to `robot*_end_effector_link`, matching the proven single-hardware configuration. The previous shorter chain (≈0.126 m difference) degraded Jacobian conditioning, increased DLS damping activation, and pushed the arm into more extended joint postures for identical Cartesian targets. Dual-hardware variable stiffness is now kinematically aligned with single-hardware and **ready for hardware testing**.
+- **Dual Gazebo + Dual Hardware variable stiffness — zero errors (commit `4a99c24`)**:
+  - Patched `gazebo_ros2_control` v0.4.10 (vendored workspace overlay) — removed `__ns:=` from global rcl args that poisoned multi-robot plugin instances.
+  - Xacro plugin name parameterized via `$(arg prefix)` for unique per-robot Gazebo plugin instances.
+  - Raised `STALE_THRESHOLD` from 50→100 cycles to eliminate false bus-dead warnings during dual-USB startup.
+  - Stiffness loader: 3-attempt retry with 10 s timeout (was single attempt, 5 s).
+  - **All launch paths verified zero errors**: Single Gazebo VS, Dual Gazebo VS, Single Hardware VS, Dual Hardware VS.
+  - Dual Hardware VS promoted to ✅ **TESTED** — both robots complete full state machine cycle independently.
+- **Dual variable stiffness tip_link alignment (commit `4824fb5`)**: Updated `tip_link` in both dual-hardware variable stiffness configs from `robot*_link5` to `robot*_end_effector_link`, matching the proven single-hardware configuration.
 
 ## Previous Update (2026-03-04)
 
@@ -69,14 +76,19 @@ You can run:
 ✅ Automatic hardware detection
 ✅ **Dual hardware mode verified working** (Feb 2026)
 
-### Implemented - Awaiting Testing (Variable Stiffness)
-🔧 Variable Cartesian Impedance Controller with time-varying stiffness profiles
+### Implemented & Verified (Variable Stiffness)
+✅ Variable Cartesian Impedance Controller with time-varying stiffness profiles
 ✅ Hardware safety limits (stiffness ≤65 N/m, damping ≤10 Ns/m software cap; recommend ≤3 Ns/m on real servos)
 ✅ Manipulability metrics publishing (singular values, condition number, σ_min)
-✅ Runtime waypoint deviation (offset + absolute modes, cosine blend, auto-return to trajectory)
-✅ Support for both hardware and Gazebo simulation (GUI confirmed working, Mar 2026)
+✅ Support for both hardware and Gazebo simulation — all 4 modes verified (single/dual × sim/hw, Mar 2026)
+✅ Dual Gazebo with patched gazebo_ros2_control overlay (zero-config, built by colcon)
 
-### Runtime Waypoint Deviation (Tested in Gazebo)
+### Awaiting Testing (see Planned Testing Roadmap below)
+🔧 **T0 — Data Logger & Plotter**: Logger captures 55+ columns; plotter script needed for publication-quality figures
+🔧 **T1 — Runtime Waypoint Deviation**: Gazebo-tested (offset + absolute, cosine blend); hardware test pending, dual-robot tool support needed
+🔧 **T2 — EE Contact Force Sensing**: Deflection-based estimate implemented; calibration, filtering, and latency characterization pending
+
+### Runtime Waypoint Deviation (Gazebo-tested, hardware pending — see T1)
 
 - The controller supports runtime waypoint deviation: an external node publishes a
   `PoseStamped` to `~/waypoint_command` (offset or absolute) and the controller
@@ -86,19 +98,25 @@ You can run:
   `deviation_publish_threshold` (default 0.01 m) the controller publishes the
   actual joint state on `~/deviated_waypoint` (rate-limited to ~2 Hz).
 - **Status: ✅ Gazebo-tested (Mar 2026)** — offset and absolute waypoints
-  verified; blend activates, completes, and deactivates correctly;
-  `publish_waypoint.py` helper script functional.
+  verified; blend activates, completes, and deactivates correctly.
+- **Pending (T1):** Hardware verification, dual-robot namespace support in tools,
+  automated test orchestrator, orientation waypoint support. See **T1** in the
+  Planned Testing Roadmap below.
 
-### EE Contact Force Sensing
+### EE Contact Force Sensing (uncalibrated — see T2)
 
 - The controller publishes a deflection-based contact force estimate on
   `~/contact_wrench` (WrenchStamped) and a validity flag on `~/contact_valid`
   (Bool, false during singularity escape).
+- Force estimate: $\hat{F} = K \cdot (x_{\text{desired}} - x_{\text{actual}})$ — uses the current Cartesian stiffness matrix.
 - `tools/ee_force_sensor.py` subscribes to these and republishes:
   - `~/ee_force` (Vector3Stamped) — filtered xyz force in root frame
   - `~/ee_force_magnitude` (Float64) — scalar for easy thresholding
 - Supports configurable namespace/controller, publish rate, deadzone, and CSV logging.
-- Designed as the sensor input for a future force→waypoint feedback loop.
+- **Pending (T2):** Bias/tare calibration, low-pass filter, gravity offset
+  correction, known-mass validation, Jacobian sensitivity characterization
+  (error vs σ_min), feedback latency measurement. See **T2** in the Planned
+  Testing Roadmap below.
 
 ### Safety Features (Variable Stiffness Controller)
 ✅ **Pre-trajectory IK Validation**: Validates entire trajectory via position-only Jacobian pseudo-inverse IK (backward-walk seeding) before execution
@@ -108,6 +126,164 @@ You can run:
 ✅ **Manipulability Threshold**: Rejects trajectories that pass through low-manipulability regions
 ✅ **Joint-space Homing**: PD homing bypasses Cartesian impedance to prevent arm flips through singular regions
 ✅ **Joint-space Regularization**: Keeps arm near planned configuration during compliant trajectory execution
+
+## Planned Testing & Tooling Roadmap
+
+The following features require structured testing before publication. Each item lists the current state, gaps, and a concrete test plan.
+
+### T0: Data Logger Sufficiency & Publication-Quality Plotting
+
+**Goal:** Verify that `logger.py` captures every variable needed for analysis, with correct units, and produce a standalone plotter that generates publication-ready figures.
+
+**Current state:** Logger (`scripts/logger.py`) subscribes to 14 controller topics and writes two CSVs per run:
+- **Snapshot CSV** (~55 columns at configurable rate, default 100 Hz): timestamps, actual/desired EE pose (m, quaternion), EE velocity (m/s, rad/s), joint velocities (rad/s), joint torques (Nm), Cartesian stiffness (N/m) and damping (Ns/m), manipulability metrics (σ_min, condition number, Yoshikawa index), contact wrench (N, Nm), waypoint-active flag, and optional full Jacobian (24 entries).
+- **Events CSV**: one row per `deviated_waypoint` JointState message (joint positions, velocities, efforts).
+
+**Gaps identified:**
+| Gap | Impact | Fix |
+|-----|--------|-----|
+| CSV headers have no units row | Reader must consult this doc to interpret columns | Add a `# units:` comment row as the second line of every CSV |
+| No controller state column (HOMING, MOVE_FORWARD, etc.) | Cannot segment data by phase without manual timestamp alignment | Publish state enum on a new `~/controller_state` topic (String) and log it |
+| No plotter script exists | No way to generate figures from logged data | Create `tools/plot_log.py` |
+| No rotational stiffness/damping units label | `Krx/Kry/Krz` columns ambiguous | Document: Nm/rad for rotational stiffness, Nms/rad for rotational damping |
+| Dead code at bottom of logger.py | Maintenance burden | Remove commented-out old implementation |
+
+**Test plan:**
+1. Run single Gazebo VS for 2 full trajectory cycles with `enable_logger:=true`
+2. Inspect CSV: confirm every column has data, no NaN gaps, timestamps monotonically increasing
+3. Build `tools/plot_log.py` (matplotlib) producing the following publication-quality plots:
+   - **EE trajectory** (3D path: actual vs desired, with start/end markers)
+   - **EE position tracking error** vs time (x, y, z subplots, units: mm)
+   - **Stiffness profile** vs trajectory progress (Kx, Ky, Kz)
+   - **Damping profile** vs trajectory progress (Dx, Dy, Dz)
+   - **Joint torques** vs time (τ₁–τ₄, units: Nm)
+   - **Manipulability** (σ_min vs time, with DLS-active threshold line)
+   - **Contact force magnitude** vs time (N)
+   - **Controller state** vs time (color-coded background bands)
+4. Plot style: bold serif font (12 pt ticks, 14 pt labels, 16 pt titles), 300 DPI PNG export, LaTeX-compatible labels, gridlines, and legend outside plot area
+5. Repeat on hardware (single + dual) to confirm identical column structure
+6. Log one dual-hardware run and generate comparative robot1 vs robot2 overlay plots
+
+**Acceptance criteria:** A single command `python3 tools/plot_log.py /tmp/variable_stiffness_logs/` produces all plots from any logged session, with no manual column mapping.
+
+### T1: Waypoint Live Deviation (Full Test Loop)
+
+**Goal:** Validate the runtime waypoint deviation feature end-to-end — from publishing a waypoint command to observing the EE physically deviate and return — in both simulation and hardware.
+
+**Current state:**
+- Controller implements `~/waypoint_command` (PoseStamped) subscription with offset and absolute modes, cosine-blend transition over `waypoint_blend_duration` seconds, and automatic return to the planned trajectory.
+- `~/waypoint_active` (Bool) published while blend is in progress.
+- `~/deviated_waypoint` (JointState) published when EE deviates > `deviation_publish_threshold` (default 0.01 m).
+- `tools/publish_waypoint.py`: one-shot publisher, hardcoded `/omx` namespace, no orientation control.
+- `tools/deviated_listener.py`: captures first `deviated_waypoint` message to CSV, then exits.
+- **Status:** Gazebo-tested for offset/absolute blend activation and completion (Mar 2026). Not tested on hardware. Dual-robot namespace support missing from helper tools.
+
+**Gaps identified:**
+| Gap | Impact | Fix |
+|-----|--------|-----|
+| `publish_waypoint.py` hardcodes `/omx` | Cannot test on dual-robot namespaces (`/robot1`, `/robot2`) | Add `--namespace` CLI arg |
+| No orientation waypoint support | Cannot test orientation deviation | Add `--rpy` CLI arg for roll/pitch/yaw |
+| `deviated_listener.py` is single-shot | Cannot observe return-to-trajectory phase | Rewrite as continuous listener with timeout |
+| No automated test script | Manual multi-terminal coordination required | Create `tools/test_waypoint_deviation.py` orchestrator |
+| Not tested on hardware | Unknown whether EE physically deviates within torque limits | Hardware test required |
+| No dual-robot deviation test | Unknown interaction between concurrent waypoints | Test both robots deviating simultaneously |
+
+**Test plan — Simulation (single robot):**
+1. Launch single Gazebo VS (`gui:=false, enable_logger:=true`)
+2. Wait for MOVE_FORWARD state (trajectory active)
+3. Publish offset waypoint: `+0.03 m` in x (toward extension)
+4. Verify via logger CSV: `waypoint_active` transitions `0→1→0`, EE x overshoots by ~30 mm then returns
+5. Publish absolute waypoint: `[0.20, 0.03, 0.18]` (off-trajectory)
+6. Verify EE reaches target within 2× blend duration, then returns to trajectory
+7. Verify `deviated_waypoint` messages fire during deviation and stop after return
+8. Verify no singularity escape triggered (σ_min stays above threshold)
+
+**Test plan — Simulation (dual robot):**
+1. Launch dual Gazebo VS
+2. Send offset waypoint to robot1 only → verify robot2 unaffected
+3. Send simultaneous waypoints to both robots → verify independent deviation/return
+
+**Test plan — Hardware (single robot):**
+1. Launch single hardware VS with conservative stiffness (Kx=Ky=Kz=20 N/m)
+2. During MOVE_FORWARD, publish small offset: `+0.02 m` in x
+3. Physically observe EE shift forward, then return
+4. Monitor `[CLAMP]` logs — torque must not saturate during deviation
+5. Verify σ_min does not drop below escape threshold
+
+**Test plan — Hardware (dual robot):**
+1. Launch dual hardware VS
+2. Deviate robot1 while robot2 runs normal trajectory
+3. Verify namespace isolation — robot2 must be unaffected
+4. Simultaneous deviation on both robots
+
+**Acceptance criteria:**
+- Offset and absolute waypoints work in all 4 modes (single/dual × sim/hw)
+- Cosine blend activates and deactivates cleanly (no stuck `waypoint_active`)
+- EE returns to planned trajectory within `waypoint_blend_duration + 1 s`
+- No torque saturation or singularity escape during moderate deviations (≤ 0.05 m)
+- Logger CSV captures the full deviation event with correct `waypoint_active` column
+
+### T2: EE Contact Force Sensing — Calibration & Latency
+
+**Goal:** Validate the deflection-based contact force estimate against known loads, characterize its accuracy as a function of Jacobian conditioning (σ_min), and measure feedback latency.
+
+**Current state:**
+- Controller computes contact force as $\hat{F} = K \cdot (x_{\text{desired}} - x_{\text{actual}})$ — a deflection-based estimate using the current Cartesian stiffness matrix.
+- Published on `~/contact_wrench` (WrenchStamped) with a validity flag on `~/contact_valid` (suppressed during singularity escape).
+- `tools/ee_force_sensor.py` applies deadzone filtering (default 0.1 N) and republishes as `~/ee_force` (Vector3Stamped) + `~/ee_force_magnitude` (Float64).
+- CSV logging supported via `--csv` flag.
+- **Not calibrated.** No bias removal, no low-pass filter, no gravity offset correction, no comparison to ground truth.
+
+**Known limitations (design constraints):**
+- **Jacobian sensitivity:** The force estimate depends on the Cartesian stiffness at the current configuration. Near singularities (low σ_min), the stiffness effectively `sees` deflections differently along different axes. The estimate degrades as σ_min → 0 even though `contact_valid` only suppresses during escape.
+- **No direct F/T sensor:** This is purely model-based (spring-deflection). External perturbations that do not cause measurable EE deflection (e.g., forces along the stiff axis) will be underestimated.
+- **Gravity coupling:** During vertical motion, gravity-induced sag creates a standing offset in the z-force estimate. This must be tared per-configuration.
+- **Latency:** The estimate is computed inside the 500 Hz control loop, but `ee_force_sensor.py` republishes at a configurable rate (default 50 Hz). The total pipeline latency (sensor → controller → topic → ee_force_sensor → subscriber) determines whether force-feedback is viable.
+
+**Gaps identified:**
+| Gap | Impact | Fix |
+|-----|--------|-----|
+| No bias/tare calibration | Standing force reading when no contact exists | Add `--tare` mode to `ee_force_sensor.py`: average N samples at rest, subtract as offset |
+| No low-pass filter | High-frequency joint noise creates force jitter | Add configurable 1st-order Butterworth or EMA filter (cutoff ~10–20 Hz) |
+| No gravity offset correction | z-force offset varies with arm pose | Tare per-pose or add gravity model subtraction |
+| No ground-truth validation | Unknown accuracy (N, %) | Use known masses at EE to calibrate |
+| No σ_min-dependent error characterization | Unknown degradation near singularities | Sweep σ_min range and measure force error |
+| Latency not measured | Unknown if fast enough for force-feedback control | Timestamp comparison: controller publish time vs ee_force_sensor receive time |
+| `ee_force_sensor.py` drops torque components | Cannot detect rotational contact | Add torque passthrough or separate topic |
+
+**Test plan — Static calibration (hardware):**
+1. Launch single hardware VS in WAIT_AT_START state (arm at known rest pose)
+2. Record 5 s of `~/contact_wrench` with no contact → compute bias (mean fx, fy, fz)
+3. Attach known masses to EE gripper: 50 g, 100 g, 200 g
+4. For each mass, record 5 s → compute mean fz, compare to expected (mass × 9.81)
+5. Compute absolute error (N) and relative error (%) per mass point
+6. Repeat at 3 different arm configurations (extended, mid-range, near-singular)
+7. Tabulate: configuration (joint angles), σ_min, expected force, measured force, error
+
+**Test plan — Dynamic response (hardware):**
+1. During MOVE_FORWARD, tap EE with finger → observe force spike
+2. Record `~/ee_force_magnitude` at 50 Hz and controller's `~/contact_wrench` at logger rate
+3. Measure rise time (10%→90% of peak) and settling time
+4. Measure latency: compare `contact_wrench.header.stamp` with `ee_force.header.stamp`
+
+**Test plan — Jacobian sensitivity (Gazebo):**
+1. Design a trajectory that sweeps σ_min from 0.08 (healthy) down to 0.03 (near threshold)
+2. Apply a constant simulated force (Gazebo `apply_wrench` plugin) at the EE
+3. Record estimated force vs applied force as a function of σ_min
+4. Plot error vs σ_min → characterize the degradation curve
+
+**Test plan — Feedback latency (hardware):**
+1. Subscribe to both `~/contact_wrench` (500 Hz from controller) and `~/ee_force` (50 Hz from sensor node)
+2. Introduce a step perturbation (place/remove mass)
+3. Measure time difference between force step appearance on `contact_wrench` vs `ee_force`
+4. Target: total latency < 40 ms for closed-loop force feedback at 25 Hz
+
+**Acceptance criteria:**
+- Static accuracy: < 15% relative error for known loads > 0.5 N at σ_min > 0.05
+- Bias drift: < 0.2 N over 60 s with no contact
+- Latency: `ee_force_sensor.py` publishes within 25 ms of controller's `contact_wrench` timestamp
+- Force estimate validity flag correctly suppresses during singularity escape
+- Documented calibration table with repeatability bounds (±1 SD across 3 trials per mass)
 
 ## Directory Structure
 
