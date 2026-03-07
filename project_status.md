@@ -4,6 +4,104 @@ This document captures the current state of the workspace, issues encountered, r
 
 ---
 
+## Update (2026-03-07 — Dual Gazebo + Dual Hardware VS, all zero errors)
+
+### Summary
+
+All variable stiffness launch paths now verified with zero ROS errors:
+
+| Launch path | Result |
+|---|---|
+| Single Gazebo VS | ✅ Full state machine cycle, σ_min ~0.065 |
+| Dual Gazebo VS | ✅ Both robots complete independent state machine cycles |
+| Single Hardware VS | ✅ Controllers loaded and activated, Dynamixel IDs 011–015 |
+| Dual Hardware VS | ✅ Both robots HOMING→MOVE_FORWARD→WAIT_AT_END→MOVE_RETURN→WAIT_AT_START, stiffness profiles loaded on both |
+
+### Changes (commit `4a99c24`)
+
+1. **gazebo_ros2_control overlay** (`ws/src/gazebo_ros2_control/`): Vendored v0.4.10 source with namespace poisoning fix. Removed `__ns:=` from global rcl arguments — the namespace is already handled by `gazebo_ros::Node::Get(sdf)` and passed explicitly to `ControllerManager`. Workspace overlay takes precedence over system package automatically via `colcon build`.
+
+2. **Xacro plugin name** (`open_manipulator_x_robot.urdf.xacro`): Changed `<plugin name="gazebo_ros2_control">` → `<plugin name="$(arg prefix)gazebo_ros2_control">`. Each robot gets a unique plugin instance name; single-robot (prefix="") is identical to original.
+
+3. **STALE_THRESHOLD** raised from 50→100 cycles (200 ms at 500 Hz) to prevent false bus-dead detection during dual-USB startup bandwidth contention.
+
+4. **Stiffness loader retry** (`load_stiffness.py`): 3-attempt retry with 10 s per-attempt timeout (was single attempt, 5 s). Eliminates transient service timeout on robot2 during dual-hardware startup.
+
+5. **Dual Gazebo launch serialization** (`dual_gazebo_variable_stiffness.launch.py`): Spawn chain serialized (spawn_r1 → jsb_r1 → vs_r1 → spawn_r2 → jsb_r2 → vs_r2) to prevent namespace contamination.
+
+6. **Dual Gazebo YAML configs** (`robot1_gazebo_variable_stiffness.yaml`, `robot2_gazebo_variable_stiffness.yaml`): All keys use absolute namespace paths (`/robot1/controller_manager:`, `/robot2/controller_manager:`).
+
+### Safety verification — no regressions
+
+| Scenario | prefix value | Plugin name | Impact |
+|---|---|---|---|
+| Single Gazebo | `""` (default) | `gazebo_ros2_control` | Identical to original |
+| Dual Gazebo | `robot1_`/`robot2_` | `robot1_gazebo_ros2_control`/`robot2_gazebo_ros2_control` | The fix |
+| Hardware (any) | n/a | Plugin section skipped (`use_sim:=false` guard) | Zero impact |
+
+All YAML configs use absolute namespace paths — `__ns:=` removal has no effect on parameter resolution.
+
+### README testing status update
+
+- **Variable Stiffness / Dual Hardware**: 🔧 Ready → ✅ **TESTED**
+
+---
+
+## Planned Testing Roadmap (next priorities)
+
+### T0: Data Logger & Publication-Quality Plotter
+
+**Status:** Logger (`scripts/logger.py`) captures 55+ columns across 14 topics. No plotter exists.
+
+**Key gaps:**
+- No units row in CSV headers
+- No controller state column (HOMING/MOVE_FORWARD/etc.) — cannot segment data by phase
+- No plotter script — need `tools/plot_log.py` (matplotlib, bold serif font 12–16 pt, 300 DPI PNG)
+- Dead code at bottom of logger.py
+
+**Required plots:** EE trajectory 3D, position tracking error vs time, stiffness/damping profiles vs progress, joint torques vs time, σ_min vs time, contact force vs time, controller state bands.
+
+**Deliverables:** (1) Add units comment row to CSV, (2) add controller state topic+column, (3) `tools/plot_log.py` producing all plots from a single command, (4) clean dead code.
+
+### T1: Waypoint Live Deviation — Full Test Loop
+
+**Status:** Controller implements waypoint deviation (offset + absolute, cosine blend, auto-return). Gazebo-tested for basic activation/completion. Helper tools (`publish_waypoint.py`, `deviated_listener.py`) are single-shot, hardcoded to `/omx`, lack orientation support.
+
+**Key gaps:**
+- Tools hardcode `/omx` namespace — need `--namespace` arg for dual-robot
+- No orientation waypoint control
+- `deviated_listener.py` is single-shot — cannot observe return phase
+- No automated orchestrator script
+- Not tested on hardware; not tested on dual-robot
+
+**Test matrix:** 4 modes (single/dual × sim/hw), offset + absolute waypoints, simultaneous dual deviation, torque saturation monitoring, singularity escape threshold check.
+
+**Deliverables:** (1) Fix tool namespace args, (2) `tools/test_waypoint_deviation.py` orchestrator, (3) pass all 4 modes, (4) logger CSV shows clean `waypoint_active` transitions.
+
+### T2: EE Contact Force — Calibration & Latency
+
+**Status:** Deflection-based force estimate ($\hat{F} = K \cdot \Delta x$) published at 500 Hz. `ee_force_sensor.py` republishes with deadzone filter at 50 Hz. No calibration, no low-pass filter, no ground-truth comparison.
+
+**Key gaps:**
+- No bias/tare calibration (standing force offset at rest)
+- No low-pass filter (joint noise creates force jitter)
+- No gravity offset correction (z-offset varies with arm pose)
+- No known-mass validation (accuracy unknown)
+- Jacobian sensitivity not characterized (error vs σ_min unknown)
+- Feedback latency not measured
+
+**Test plan:**
+- **Static calibration:** Known masses (50/100/200 g) at EE, 3 arm configurations, compare measured vs expected force
+- **Dynamic response:** Tap test, measure rise time and settling time
+- **Jacobian sensitivity:** Sweep σ_min in Gazebo with constant applied wrench, plot error vs σ_min
+- **Latency:** Timestamp comparison controller→sensor, target < 40 ms
+
+**Acceptance criteria:** < 15% relative error at σ_min > 0.05, bias drift < 0.2 N over 60 s, latency < 25 ms controller→sensor.
+
+**Deliverables:** (1) Add tare mode to `ee_force_sensor.py`, (2) add low-pass filter option, (3) calibration table with repeatability, (4) latency measurement script.
+
+---
+
 ## Update (2026-03-10 — Dual Gazebo variable stiffness, GUI launch working)
 
 ### Summary
