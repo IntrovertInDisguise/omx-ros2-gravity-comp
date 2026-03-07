@@ -4,6 +4,70 @@ This document captures the current state of the workspace, issues encountered, r
 
 ---
 
+## Update (2026-03-10 — Dual Gazebo variable stiffness, GUI launch working)
+
+### Summary
+
+- Dual Gazebo variable stiffness with two robots in one Gazebo world now works with GUI; both robots complete the full state machine (HOMING → MOVE_FORWARD → WAIT_AT_END).
+
+### Root Cause
+
+- `gazebo_ros2_control` v0.4.10 had a namespace poisoning bug: its plugin `Load()` function appended `__ns:=/robotN` into the global `rcl_context->global_arguments`.
+- The first plugin instance (robot1) set `__ns:=/robot1`; all later plugin instances in the same `gzserver` process inherited `/robot1` instead of their intended namespaces.
+- As a result, robot2's plugin:
+  - Created its ROS 2 node under `/robot1`.
+  - Fetched robot1's URDF from `/robot1/robot_state_publisher`.
+  - Logged joint mismatches ("Skipping joint robot1_joint1 not in gazebo model").
+  - Registered zero hardware interfaces; controllers failed with "None of requested interfaces exist".
+
+### Fixes
+
+1. **Unique plugin (node) names in xacro**
+   - In `open_manipulator_x_description/urdf/open_manipulator_x_robot.urdf.xacro`, the plugin tag was changed from `<plugin name="gazebo_ros2_control">` to `<plugin name="$(arg prefix)gazebo_ros2_control">`.
+   - This gives each robot a unique plugin/node name so `gazebo_ros::Node::Get()` does not return a cached node from the first robot.
+
+2. **Patched libgazebo_ros2_control.so**
+   - New patch: `tools/patches/fix_gazebo_ros2_control_multi_robot.patch`.
+   - Removed the `__ns:=/robotN` remapping from the global rcl arguments in the plugin `Load()` function.
+   - The namespace is already correctly handled by `gazebo_ros::Node::Get(sdf)` and passed explicitly into `ControllerManager`, so only the harmful global `__ns` mutation was dropped. Parameter file loading via global args remains unchanged.
+
+### Files Changed
+
+- `open_manipulator_x_description/urdf/open_manipulator_x_robot.urdf.xacro`: plugin name now uses `$(arg prefix)` for uniqueness.
+- `tools/patches/fix_gazebo_ros2_control_multi_robot.patch`: patch that removes the global `__ns` remap.
+- `tools/patches/apply_gazebo_ros2_control_patch.sh`: script to rebuild and install the patched `libgazebo_ros2_control.so`.
+
+### Test Results (gui:=true)
+
+- **Robot1**: namespace `/robot1`, 4 joints configured, `torque_scale=1.0`, tip `robot1_end_effector_link`; state machine HOMING → MOVE_FORWARD → WAIT_AT_END ✅
+- **Robot2**: namespace `/robot2`, 4 joints configured, `torque_scale=1.0`, tip `robot2_end_effector_link`; state machine HOMING → MOVE_FORWARD → WAIT_AT_END ✅
+- `sigma_min ≈ 0.065` for both robots (DLS off, no singularities).
+- All spawners finished cleanly; zero ROS errors.
+- Gazebo GUI renders correctly with `LIBGL_ALWAYS_SOFTWARE=1`.
+
+### Important Note
+
+- The patched `libgazebo_ros2_control.so` must be rebuilt after each container rebuild:
+  - Run: `bash tools/patches/apply_gazebo_ros2_control_patch.sh`.
+
+## Update (2026-03-07 — Dual tip_link aligned with single-hw)
+
+### Summary
+
+- Commit `4824fb5`: **fix(dual): set tip_link to robot*_end_effector_link to match single-hw**.
+- Both dual-hardware variable stiffness configs were using `robot*_link5` as the `tip_link`, whereas the proven single-hardware setup uses `*_end_effector_link`.
+- This shortened kinematic chain by ~0.126 m, degrading Jacobian conditioning, increasing DLS damping intervention, and biasing the arm toward more extended configurations for the same Cartesian targets.
+
+### Changes
+
+- `config/robot1_variable_stiffness.yaml`: `tip_link` changed from `robot1_link5` → `robot1_end_effector_link`.
+- `config/robot2_variable_stiffness.yaml`: `tip_link` changed from `robot2_link5` → `robot2_end_effector_link`.
+
+### Status
+
+- Dual-hardware variable stiffness configs now use the identical root/tip kinematic chain as the stable single-hardware configuration.
+- Ready for dual-hardware variable stiffness **hardware testing**.
+
 ## Update (2026-03-05 — Gazebo GUI Confirmed + Safety Hardening)
 
 ### Session Summary

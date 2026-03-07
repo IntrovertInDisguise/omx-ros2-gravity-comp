@@ -93,7 +93,7 @@ private:
 
   // Stale-data detector: if all joint positions are identical for N consecutive
   // cycles, the Dynamixel bus has crashed. Zero torques to prevent blind driving.
-  static constexpr size_t STALE_THRESHOLD = 50;  // cycles (~100ms at 500Hz)
+  static constexpr size_t STALE_THRESHOLD = 100; // cycles (~200ms at 500Hz)
   size_t stale_position_count_{0};
   KDL::JntArray q_prev_;  // previous cycle's positions
 

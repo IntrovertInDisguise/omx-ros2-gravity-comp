@@ -12,6 +12,7 @@
   <xacro:arg name="port_name" default="/dev/ttyUSB0" />
   <xacro:arg name="controller_config"
              default="$(find open_manipulator_x_bringup)/config/gazebo_controller_manager.yaml" />
+  <xacro:arg name="robot_namespace" default="/omx" />
 
   <!-- ======================== -->
   <!-- Includes -->
@@ -60,10 +61,10 @@
   -->
   <xacro:if value="$(arg use_sim)">
   <gazebo>
-    <plugin name="gazebo_ros2_control"
+    <plugin name="$(arg prefix)gazebo_ros2_control"
             filename="libgazebo_ros2_control.so">
       <ros>
-        <namespace>/omx</namespace>
+        <namespace>$(arg robot_namespace)</namespace>
       </ros>
       <parameters>$(arg controller_config)</parameters>
     </plugin>
