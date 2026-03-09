@@ -166,6 +166,16 @@ The following features require structured testing before publication. Each item 
 
 **Acceptance criteria:** A single command `python3 tools/plot_log.py /tmp/variable_stiffness_logs/` produces all plots from any logged session, with no manual column mapping.
 
+## Tools: Plotter
+
+Added `tools/plot_logs.py`: a standalone, publication-quality plotter for the logger CSVs.
+- Run `python3 tools/plot_logs.py --log-dir /tmp/variable_stiffness_logs` to list and plot runs.
+- Built-in tests: `python3 tools/plot_logs.py --test` (skips data-dependent tests if `pandas/numpy/matplotlib` are not installed).
+- The script detects single/dual runs, supports phase-space comparisons and baseline overlays, and writes 300 DPI PNGs when `--save-dir` is provided.
+
+Notes:
+- Default log directory can be overridden with the `OMX_LOG_DIR` environment variable or `--log-dir` flag.
+
 ### T1: Waypoint Live Deviation (Full Test Loop)
 
 **Goal:** Validate the runtime waypoint deviation feature end-to-end — from publishing a waypoint command to observing the EE physically deviate and return — in both simulation and hardware.
@@ -411,7 +421,7 @@ ros2 topic echo /robot1/joint_states
 - If arms feel stiff or overshoot, decrease `torque_scale`
 - Each robot can be tuned independently via its config file
 
-### 2) Dual Simulation Setup (2 robots in Gazebo) ⚠️ Untested
+### 2) Dual Simulation Setup (2 robots in Gazebo) -✅ TESTED
 
 > ⚠️ **Status: UNTESTED** — Builds and launches, but not verified in simulation.
 
@@ -850,7 +860,7 @@ ros2 topic echo /omx/variable_stiffness_controller/manipulability_metrics --once
 ros2 topic echo /omx/variable_stiffness_controller/torque_values --once
 ```
 
-### 6) Variable Cartesian Impedance Control (Dual Hardware) 🔧 Ready
+### 6) Variable Cartesian Impedance Control (Dual Hardware) ✅ TESTED
 
 > 🔧 **Status: Ready** — Code complete, awaiting physical robot connection for testing.
 
@@ -975,7 +985,7 @@ ros2 run omx_variable_stiffness_controller logger.py --ros-args \
 cp /tmp/variable_stiffness_logs/variable_stiffness_log_*.csv ~/saved_logs/
 ```
 
-### 6) Variable Cartesian Impedance Control (Dual Simulation) 🔧 TESTED - March 7, 2026
+### 6) Variable Cartesian Impedance Control (Dual Simulation) ✅ TESTED - March 7, 2026
 
 > ⚠️ **Status: BUILD ONLY** — This controller compiles and has been tested in Gazebo simulation.
 
@@ -1012,7 +1022,7 @@ ros2 control list_controllers -c /robot1/controller_manager
 ros2 topic echo /robot1/robot1_variable_stiffness/manipulability
 ```
 
-### 7) Variable Cartesian Impedance Control (Dual Hardware) 🔧 TESTED - March 7, 2026
+### 7) Variable Cartesian Impedance Control (Dual Hardware) ✅ TESTED - March 7, 2026
 
 > ⚠️ **Status: BUILD ONLY** — This controller compiles and has been tested on actual hardware.
 
@@ -1048,13 +1058,13 @@ ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.
 # Or specify port explicitly
 ros2 launch omx_variable_stiffness_controller variable_stiffness_control.launch.py \
   port:=/dev/ttyUSB0
-
+/workspaces/omx_ros2/tools/launch_with_build.sh --no-build -- omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py start_rviz:=false enable_logger:=true
 # Sanity checks
 ros2 control list_controllers -c /omx/controller_manager
 ros2 topic echo /omx/variable_stiffness_controller/manipulability
 ```
 
-### 8) Variable Cartesian Impedance Control (Single Simulation) 🔧 UNTESTED
+### 8) Variable Cartesian Impedance Control (Single Simulation) ✅ TESTED - March 7, 2026
 
 > ⚠️ **Status: BUILD ONLY** — This controller compiles but has NOT been tested in Gazebo simulation.
 
@@ -1109,6 +1119,19 @@ The auto-detection launch file will automatically detect if two robots are conne
 ```bash
 ros2 launch omx_dual_bringup auto_dual_gravity_comp.launch.py
 ```
+
+### Launch wrapper (build + source)
+
+To ensure the workspace is built and the install/setup is sourced before running a launch, use the provided wrapper script. This is useful in the devcontainer where environment setup can be required before launching nodes.
+
+```bash
+# Build (optional) then launch (example)
+/workspaces/omx_ros2/tools/launch_with_build.sh --build -- omx_variable_stiffness_controller \
+  dual_hardware_variable_stiffness.launch.py start_rviz:=false enable_logger:=false
+```
+
+The wrapper will run `colcon build` (when `--build` is given or if no `install/setup.bash` exists), source the workspace setup, and then exec `ros2 launch` with the provided arguments. It also temporarily relaxes `nounset` while sourcing setup files to avoid failures from third-party setup scripts.
+
 
 **Launch Arguments:**
 - `mode`: `auto` (default), `hw`, `sim`

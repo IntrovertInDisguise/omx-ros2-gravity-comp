@@ -63,6 +63,14 @@ All YAML configs use absolute namespace paths — `__ns:=` removal has no effect
 
 **Deliverables:** (1) Add units comment row to CSV, (2) add controller state topic+column, (3) `tools/plot_log.py` producing all plots from a single command, (4) clean dead code.
 
+### Update (2026-03-09): Plotter and built-in tests
+
+- `tools/plot_logs.py` added: publication-quality plotter with three main capabilities (full timeseries subplots, phase-space analysis, baseline comparison). It supports single/dual runs, auto-detects modes, and writes 300 DPI PNGs.
+- Built-in unit tests added (`--test`) that validate mode detection, CSV loading logic, plotting rcParams, and CLI parsing. Data-dependent tests are skipped if `pandas/numpy/matplotlib` are not installed in the environment.
+- Default log directory: `/tmp/variable_stiffness_logs` (override with `OMX_LOG_DIR` or `--log-dir`).
+
+Status: ✅ `tools/plot_logs.py` created and syntax-validated; built-in tests pass (skipping data tests when deps missing). Functional plotting requires `matplotlib`, `pandas`, and `numpy` on the host used to generate figures.
+
 ### T1: Waypoint Live Deviation — Full Test Loop
 
 **Status:** Controller implements waypoint deviation (offset + absolute, cosine blend, auto-return). Gazebo-tested for basic activation/completion. Helper tools (`publish_waypoint.py`, `deviated_listener.py`) are single-shot, hardcoded to `/omx`, lack orientation support.
