@@ -16,7 +16,7 @@ The robots can be controlled via:
 | **Gravity Compensation** | Dual Hardware | ✅ **TESTED** | Verified Feb 2026, two physical OM-X robots |
 | **Gravity Compensation** | Single Hardware | ✅ **TESTED** | Verified Feb 2026 |
 | **Gravity Compensation** | Dual Gazebo | ⚠️ Partial | Builds and launches; headless mode now works with fake hardware (plugin mismatch avoided). |
-| **Gravity Compensation** | Single Gazebo | ⚠️ Partial | Builds and launches; headless mode now works with fake hardware (plugin mismatch avoided). |
+| **Gravity Compensation** | Single Gazebo | ✅ **TESTED** | Verified Mar 2026 — single-robot Gazebo gravity compensation works (live-plot subscription verified). |
 | **Variable Stiffness** | Single Sim | ✅ **TESTED** | Verified Feb 2026 with mock hardware |
 | **Variable Stiffness** | Single Hardware | ✅ **TESTED** | Verified March 2026 |
 | **Variable Stiffness** | Dual Hardware | ✅ **TESTED** | Verified Mar 2026: both robots complete full state machine cycle, zero errors. |
