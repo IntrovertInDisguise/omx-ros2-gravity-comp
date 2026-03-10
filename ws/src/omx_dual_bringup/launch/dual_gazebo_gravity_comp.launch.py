@@ -4,6 +4,7 @@
 # Each robot runs in its own Gazebo instance for full isolation.
 #
 
+import os
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -12,6 +13,7 @@ from launch.actions import (
     OpaqueFunction,
     RegisterEventHandler,
     SetEnvironmentVariable,
+    TimerAction,
     UnsetEnvironmentVariable,
 )
 from launch.conditions import IfCondition
@@ -317,6 +319,11 @@ def generate_launch_description():
             description='Whether to start RViz2'
         ),
         DeclareLaunchArgument(
+            'enable_live_plot',
+            default_value='true',
+            description='Start live timeseries plotter (gravity_comp, robot1+robot2)'
+        ),
+        DeclareLaunchArgument(
             'launch_gazebo',
             default_value='true',
             description='Whether to start gzserver (disable for headless tests)'
@@ -475,6 +482,25 @@ def generate_launch_description():
         condition=IfCondition(start_rviz)
     )
 
+    _d = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(10):
+        if os.path.isfile(os.path.join(_d, 'tools', 'live_plot_logs.py')):
+            break
+        _d = os.path.dirname(_d)
+    _live_plot_script = os.path.join(_d, 'tools', 'live_plot_logs.py')
+    enable_live_plot = LaunchConfiguration('enable_live_plot')
+    live_plot = TimerAction(
+        period=10.0,
+        actions=[ExecuteProcess(
+            cmd=['python3', _live_plot_script,
+                 '--controller', 'gravity_comp',
+                 '--namespace', '/robot1',
+                 '--namespace2', '/robot2'],
+            output='screen',
+            condition=IfCondition(enable_live_plot),
+        )],
+    )
+
     nodes_to_start = [
         *declared_arguments,
         robot1_state_publisher,
@@ -483,6 +509,7 @@ def generate_launch_description():
         ros2_control_r2,
         OpaqueFunction(function=_build_gazebo_nodes),
         rviz_node,
+        live_plot,
     ]
 
     return LaunchDescription(nodes_to_start)

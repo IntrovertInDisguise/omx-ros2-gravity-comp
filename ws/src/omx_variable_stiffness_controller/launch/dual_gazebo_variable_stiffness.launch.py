@@ -21,6 +21,7 @@ import os
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
+    ExecuteProcess,
     IncludeLaunchDescription,
     LogInfo,
     RegisterEventHandler,
@@ -58,6 +59,9 @@ def generate_launch_description():
             'enable_logger', default_value='false',
             description='Whether to enable data logging for both arms'),
         DeclareLaunchArgument(
+            'enable_live_plot', default_value='true',
+            description='Start live timeseries plotter (variable_stiffness, robot1+robot2)'),
+        DeclareLaunchArgument(
             'world', default_value='',
             description='Gazebo world file (optional)'),
         DeclareLaunchArgument(
@@ -72,6 +76,7 @@ def generate_launch_description():
     robot1_csv_file = LaunchConfiguration('robot1_csv_file')
     robot2_csv_file = LaunchConfiguration('robot2_csv_file')
     enable_logger = LaunchConfiguration('enable_logger')
+    enable_live_plot = LaunchConfiguration('enable_live_plot')
     world = LaunchConfiguration('world')
     launch_gazebo = LaunchConfiguration('launch_gazebo')
     gui = LaunchConfiguration('gui')
@@ -452,7 +457,7 @@ def generate_launch_description():
         name='csv_data_logger',
         parameters=[{
             'controller_name': 'robot1_variable_stiffness',
-            'output_dir': '/tmp/variable_stiffness_logs/robot1',
+            'output_dir': '/tmp/variable_stiffness_logs/dual_gazebo/robot1',
             'use_sim_time': _PLUGIN_AVAILABLE,
         }],
         output='screen',
@@ -466,7 +471,7 @@ def generate_launch_description():
         name='csv_data_logger',
         parameters=[{
             'controller_name': 'robot2_variable_stiffness',
-            'output_dir': '/tmp/variable_stiffness_logs/robot2',
+            'output_dir': '/tmp/variable_stiffness_logs/dual_gazebo/robot2',
             'use_sim_time': _PLUGIN_AVAILABLE,
         }],
         output='screen',
@@ -487,6 +492,24 @@ def generate_launch_description():
         parameters=[{'use_sim_time': _PLUGIN_AVAILABLE}],
         output='screen',
         condition=IfCondition(start_rviz),
+    )
+
+    _d = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(10):
+        if os.path.isfile(os.path.join(_d, 'tools', 'live_plot_logs.py')):
+            break
+        _d = os.path.dirname(_d)
+    _live_plot_script = os.path.join(_d, 'tools', 'live_plot_logs.py')
+    live_plot = TimerAction(
+        period=12.0,
+        actions=[ExecuteProcess(
+            cmd=['python3', _live_plot_script,
+                 '--controller', 'variable_stiffness',
+                 '--namespace',  '/robot1/robot1_variable_stiffness',
+                 '--namespace2', '/robot2/robot2_variable_stiffness'],
+            output='screen',
+            condition=IfCondition(enable_live_plot),
+        )],
     )
 
     return LaunchDescription([
@@ -518,5 +541,6 @@ def generate_launch_description():
         # Post-controller
         delay_stiffness_loaders,
         delay_loggers,
+        live_plot,
         rviz_node,
     ])

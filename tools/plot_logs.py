@@ -41,16 +41,17 @@ try:
     import matplotlib
     import matplotlib.pyplot as plt
     import numpy as np
-    import pandas as pd
-    _HAS_DEPS = True
 except ImportError:
-    # Allow --test and --help to run even if plotting deps are missing;
-    # actual plotting will fail with a clear message.
     matplotlib = None  # type: ignore[assignment]
     plt = None         # type: ignore[assignment]
     np = None          # type: ignore[assignment]
+
+try:
+    import pandas as pd
+except ImportError:
     pd = None          # type: ignore[assignment]
-    _HAS_DEPS = False
+
+_HAS_DEPS = matplotlib is not None and np is not None and pd is not None
 
 # ---------------------------------------------------------------------------
 # Default log directory — override with env var OMX_LOG_DIR or --log-dir flag
