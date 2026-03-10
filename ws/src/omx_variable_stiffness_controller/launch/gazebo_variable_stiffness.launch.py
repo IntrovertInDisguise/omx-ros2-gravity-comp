@@ -55,6 +55,11 @@ def generate_launch_description():
             description='Whether to enable data logging'
         ),
         DeclareLaunchArgument(
+            'enable_live_plot',
+            default_value='true',
+            description='Start live timeseries plotter (variable_stiffness)'
+        ),
+        DeclareLaunchArgument(
             'world',
             default_value='',
             description='Gazebo world file (empty = default empty world)'
@@ -89,6 +94,7 @@ def generate_launch_description():
     start_rviz = LaunchConfiguration('start_rviz')
     csv_file = LaunchConfiguration('csv_file')
     enable_logger = LaunchConfiguration('enable_logger')
+    enable_live_plot = LaunchConfiguration('enable_live_plot')
     world = LaunchConfiguration('world')
     robot_namespace = LaunchConfiguration('robot_namespace')
     gui = LaunchConfiguration('gui')
@@ -415,6 +421,7 @@ def generate_launch_description():
         name='csv_data_logger',
         parameters=[{
             'controller_name': 'variable_stiffness_controller',
+            'output_dir': '/tmp/variable_stiffness_logs/single_gazebo',
             'use_sim_time': True,
         }],
         output='screen',
@@ -439,6 +446,23 @@ def generate_launch_description():
     # Force software rendering for headless containers
     set_libgl_sw = SetEnvironmentVariable('LIBGL_ALWAYS_SOFTWARE', '1')
 
+    _d = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(10):
+        if os.path.isfile(os.path.join(_d, 'tools', 'live_plot_logs.py')):
+            break
+        _d = os.path.dirname(_d)
+    _live_plot_script = os.path.join(_d, 'tools', 'live_plot_logs.py')
+    live_plot = TimerAction(
+        period=10.0,
+        actions=[ExecuteProcess(
+            cmd=['python3', _live_plot_script,
+                 '--controller', 'variable_stiffness',
+                 '--namespace', ['/', robot_namespace, '/variable_stiffness_controller']],
+            output='screen',
+            condition=IfCondition(enable_live_plot),
+        )],
+    )
+
     return LaunchDescription([
         *declared_arguments,
         set_libgl_sw,
@@ -461,5 +485,6 @@ def generate_launch_description():
         # Post-controller actions
         start_stiffness_after_vs,
         delay_logger,
+        live_plot,
         rviz_node,
     ])

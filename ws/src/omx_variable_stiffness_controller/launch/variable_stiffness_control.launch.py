@@ -81,6 +81,11 @@ def generate_launch_description():
             default_value="true",
             description="Enable data logger"
         ),
+        DeclareLaunchArgument(
+            "enable_live_plot",
+            default_value="true",
+            description="Start live timeseries plotter (variable_stiffness)"
+        ),
     ]
 
     # -------------------------
@@ -92,6 +97,7 @@ def generate_launch_description():
     start_rviz = LaunchConfiguration("start_rviz")
     csv_file = LaunchConfiguration("csv_file")
     enable_logger = LaunchConfiguration("enable_logger")
+    enable_live_plot = LaunchConfiguration("enable_live_plot")
 
     controller_config = PathJoinSubstitution([
         FindPackageShare("omx_variable_stiffness_controller"),
@@ -252,6 +258,7 @@ def generate_launch_description():
         name="csv_data_logger",
         parameters=[{
             "controller_name": "variable_stiffness_controller",
+            "output_dir": "/tmp/variable_stiffness_logs/single_hardware",
         }],
         condition=IfCondition(enable_logger),
         output="screen",
@@ -276,6 +283,24 @@ def generate_launch_description():
     )
 
     # -------------------------
+    import os as _os
+    _d = _os.path.dirname(_os.path.abspath(__file__))
+    for _ in range(10):
+        if _os.path.isfile(_os.path.join(_d, 'tools', 'live_plot_logs.py')):
+            break
+        _d = _os.path.dirname(_d)
+    _live_plot_script = _os.path.join(_d, 'tools', 'live_plot_logs.py')
+    live_plot = TimerAction(
+        period=5.0,
+        actions=[ExecuteProcess(
+            cmd=['python3', _live_plot_script,
+                 '--controller', 'variable_stiffness',
+                 '--namespace', ['/', robot_namespace, '/variable_stiffness_controller']],
+            output='screen',
+            condition=IfCondition(enable_live_plot),
+        )],
+    )
+
     return LaunchDescription([
         *declared_arguments,
         robot_state_publisher,
@@ -285,5 +310,6 @@ def generate_launch_description():
         delay_controllers_sim,
         delay_stiffness_loader,
         delay_logger,
+        live_plot,
         rviz_node,
     ])

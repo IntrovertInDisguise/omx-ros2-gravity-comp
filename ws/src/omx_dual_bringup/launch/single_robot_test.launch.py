@@ -1,15 +1,26 @@
 #!/usr/bin/env python3
 """Single robot Gazebo test for gravity compensation."""
 
+import os
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, RegisterEventHandler, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler, SetEnvironmentVariable, TimerAction
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
-from launch.substitutions import Command, PathJoinSubstitution, FindExecutable, EnvironmentVariable, TextSubstitution
+from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution, FindExecutable, EnvironmentVariable, TextSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    declared_arguments = [
+        DeclareLaunchArgument(
+            'enable_live_plot',
+            default_value='true',
+            description='Start live timeseries plotter (gravity_comp, /omx)'
+        ),
+    ]
+    enable_live_plot = LaunchConfiguration('enable_live_plot')
+
     # Gazebo environment setup
     plugin_path = SetEnvironmentVariable(
         'GAZEBO_PLUGIN_PATH',
@@ -98,7 +109,25 @@ def generate_launch_description():
         )
     )
 
+    _d = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(10):
+        if os.path.isfile(os.path.join(_d, 'tools', 'live_plot_logs.py')):
+            break
+        _d = os.path.dirname(_d)
+    _live_plot_script = os.path.join(_d, 'tools', 'live_plot_logs.py')
+    live_plot = TimerAction(
+        period=10.0,
+        actions=[ExecuteProcess(
+            cmd=['python3', _live_plot_script,
+                 '--controller', 'gravity_comp',
+                 '--namespace', '/omx'],
+            output='screen',
+            condition=IfCondition(enable_live_plot),
+        )],
+    )
+
     return LaunchDescription([
+        *declared_arguments,
         plugin_path,
         robot_state_publisher,
         gazebo_server,
@@ -106,4 +135,5 @@ def generate_launch_description():
         spawn_robot,
         load_jsb,
         load_gravity,
+        live_plot,
     ])

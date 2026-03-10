@@ -33,6 +33,46 @@ The robots can be controlled via:
 - **Headless Tests**: ✅ **PASSING** — Unit and launch tests using `launch_gazebo:=false` (fake‑hardware) pass in the devcontainer (Feb 2026).
 - **Real Gazebo**: ⚠️ **NOT RUN** — Full Gazebo integration tests require a host with `gzserver` and `gazebo_ros2_control`; these are skipped inside the devcontainer and in CI by default.
 
+## Latest (2026-03-10 — Gazebo live plot tests)
+
+### Completed Tests
+
+All 4 Gazebo-based launch modes tested with `enable_live_plot:=true` and the new combined single-figure subplot layout:
+
+1. **single_robot_test (GC single Gazebo)** — ✅ PASS
+  - Package: `omx_dual_bringup`
+  - Live plot subscribed to `/omx/joint_states`, ran stable 30+ seconds, no crash/segfault
+  - Tested earlier in session
+
+2. **dual_gazebo_gravity_comp (GC dual Gazebo)** — ✅ PASS (live plot works)
+  - Package: `omx_dual_bringup`
+  - Live plot subscribed to both `/robot1/joint_states` and `/robot2/joint_states`, no crash
+  - Robot2 has pre-existing controller activation failure (not caused by our changes)
+  - Tested earlier in session
+
+3. **gazebo_variable_stiffness (VS single Gazebo)** — ✅ PASS
+  - Package: `omx_variable_stiffness_controller`
+  - Live plot subscribed to `/omx/variable_stiffness_controller/*`, ran stable 3+ minutes
+  - 210MB RSS, 46% CPU, no crash/segfault/traceback
+  - Uses combined single-figure layout with 13 subplots
+
+4. **dual_gazebo_variable_stiffness (VS dual Gazebo)** — ✅ PASS (live plot works)
+  - Package: `omx_variable_stiffness_controller`
+  - Live plot subscribed to both `/robot1/robot1_variable_stiffness/*` and `/robot2/robot2_variable_stiffness/*`
+  - Ran stable 2+ minutes, ~95MB RSS, no crash
+  - Robot2 VS controller has pre-existing activation failure (same dual-robot issue)
+
+### Key Changes Tested
+
+- **Combined subplot layout**: `LiveFigureManager` now creates ONE figure with all groups as subplots (GC=3, VS=13) instead of separate figures per group
+- All columns within each group are overlaid as colored lines on the same axes
+- Font sizes auto-scale for screen fitting
+- Dual-robot differentiation: solid lines for R1, dashed for R2
+
+### Known Pre-existing Issues
+
+- Robot2 controller activation fails in both dual GC and dual VS Gazebo modes (gazebo_ros2_control namespace/model isolation issue, not related to live plot changes)
+
 ## Latest (2026-03-07)
 
 - **Dual Gazebo + Dual Hardware variable stiffness — zero errors (commit `4a99c24`)**:

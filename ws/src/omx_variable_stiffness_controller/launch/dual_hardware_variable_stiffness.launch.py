@@ -89,6 +89,11 @@ def generate_launch_description():
             default_value='false',
             description='Whether to enable data logging for both arms'
         ),
+        DeclareLaunchArgument(
+            'enable_live_plot',
+            default_value='true',
+            description='Start live timeseries plotter (variable_stiffness, robot1+robot2)'
+        ),
     ]
 
     start_rviz = LaunchConfiguration('start_rviz')
@@ -97,6 +102,7 @@ def generate_launch_description():
     robot1_csv_file = LaunchConfiguration('robot1_csv_file')
     robot2_csv_file = LaunchConfiguration('robot2_csv_file')
     enable_logger = LaunchConfiguration('enable_logger')
+    enable_live_plot = LaunchConfiguration('enable_live_plot')
 
     # Get URDF via xacro for both robots
     urdf_robot1 = ParameterValue(Command([
@@ -299,7 +305,7 @@ def generate_launch_description():
         name='csv_data_logger',
         parameters=[{
             'controller_name': 'robot1_variable_stiffness',
-            'output_dir': '/tmp/variable_stiffness_logs/robot1',
+            'output_dir': '/tmp/variable_stiffness_logs/dual_hardware/robot1',
         }],
         output='screen',
         condition=IfCondition(enable_logger),
@@ -312,7 +318,7 @@ def generate_launch_description():
         name='csv_data_logger',
         parameters=[{
             'controller_name': 'robot2_variable_stiffness',
-            'output_dir': '/tmp/variable_stiffness_logs/robot2',
+            'output_dir': '/tmp/variable_stiffness_logs/dual_hardware/robot2',
         }],
         output='screen',
         condition=IfCondition(enable_logger),
@@ -321,6 +327,25 @@ def generate_launch_description():
     delay_loggers = TimerAction(
         period=12.0,
         actions=[robot1_logger, robot2_logger],
+    )
+
+    # EE force sensor processes — always start for dual-hardware runs
+    ee_force_sensor_robot1 = ExecuteProcess(
+        cmd=['/usr/bin/env', 'python3', '/workspaces/omx_ros2/tools/ee_force_sensor.py',
+             '--namespace', '/robot1', '--controller', 'robot1_variable_stiffness'],
+        output='screen',
+    )
+
+    ee_force_sensor_robot2 = ExecuteProcess(
+        cmd=['/usr/bin/env', 'python3', '/workspaces/omx_ros2/tools/ee_force_sensor.py',
+             '--namespace', '/robot2', '--controller', 'robot2_variable_stiffness'],
+        output='screen',
+    )
+
+    # Delay starting sensors slightly so controllers are up
+    delay_ee_force_sensors = TimerAction(
+        period=6.5,
+        actions=[ee_force_sensor_robot1, ee_force_sensor_robot2],
     )
 
     # RViz
@@ -332,6 +357,24 @@ def generate_launch_description():
         parameters=[{'use_sim_time': False}],
         output='screen',
         condition=IfCondition(start_rviz)
+    )
+
+    _d = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(10):
+        if os.path.isfile(os.path.join(_d, 'tools', 'live_plot_logs.py')):
+            break
+        _d = os.path.dirname(_d)
+    _live_plot_script = os.path.join(_d, 'tools', 'live_plot_logs.py')
+    live_plot = TimerAction(
+        period=12.0,
+        actions=[ExecuteProcess(
+            cmd=['python3', _live_plot_script,
+                 '--controller', 'variable_stiffness',
+                 '--namespace',  '/robot1/robot1_variable_stiffness',
+                 '--namespace2', '/robot2/robot2_variable_stiffness'],
+            output='screen',
+            condition=IfCondition(enable_live_plot),
+        )],
     )
 
     return LaunchDescription([
@@ -349,6 +392,10 @@ def generate_launch_description():
         delay_stiffness_loaders,
         # Delayed loggers
         delay_loggers,
+        # EE force sensors
+        delay_ee_force_sensors,
+        # Live plotter
+        live_plot,
         # RViz
         rviz_node,
     ])

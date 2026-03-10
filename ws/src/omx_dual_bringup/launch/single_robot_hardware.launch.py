@@ -5,6 +5,7 @@ Connects directly to Dynamixel servos — no Gazebo needed.
 """
 
 import glob
+import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch.conditions import IfCondition
@@ -35,6 +36,11 @@ def generate_launch_description():
             'start_rviz',
             default_value='false',
             description='Whether to start RViz2'
+        ),
+        DeclareLaunchArgument(
+            'enable_live_plot',
+            default_value='true',
+            description='Start live timeseries plotter (gravity_comp, /omx)'
         ),
     ]
 
@@ -110,10 +116,29 @@ def generate_launch_description():
         condition=IfCondition(start_rviz)
     )
 
+    _d = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(10):
+        if os.path.isfile(os.path.join(_d, 'tools', 'live_plot_logs.py')):
+            break
+        _d = os.path.dirname(_d)
+    _live_plot_script = os.path.join(_d, 'tools', 'live_plot_logs.py')
+    enable_live_plot = LaunchConfiguration('enable_live_plot')
+    live_plot = TimerAction(
+        period=5.0,
+        actions=[ExecuteProcess(
+            cmd=['python3', _live_plot_script,
+                 '--controller', 'gravity_comp',
+                 '--namespace', '/omx'],
+            output='screen',
+            condition=IfCondition(enable_live_plot),
+        )],
+    )
+
     return LaunchDescription([
         *declared_arguments,
         robot_state_publisher,
         controller_manager,
         delay_controllers,
         rviz_node,
+        live_plot,
     ])
