@@ -987,7 +987,7 @@ ros2 topic echo /robot1/robot1_variable_stiffness/waypoint_active
 
 **Data Logging:**
 
-The `logger.py` script logs controller state to CSV files for post-experiment analysis. By default, logs are saved to `/tmp/variable_stiffness_logs/` with timestamped filenames.
+The `logger.py` script logs controller state to CSV files for post-experiment analysis. By default, logs are saved to `/tmp/variable_stiffness_logs/` with timestamped filenames.  To keep logs inside the workspace instead, set the output directory to `ws/logs/variable_stiffness_logs/` (relative to the repository root) or any other path via the `OMX_LOG_DIR` environment variable or the `--ros-args -p output_dir:=<path>` argument.
 
 ```bash
 # Run the logger (in a separate terminal)
