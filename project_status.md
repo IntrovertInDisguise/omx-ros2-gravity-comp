@@ -4,6 +4,86 @@ This document captures the current state of the workspace, issues encountered, r
 
 ---
 
+## Update (2026-03-11 — Logger + live plotter wired for all hardware modes)
+
+### Summary
+
+All 3 hardware launch files now support both `enable_logger:=true` and `enable_live_plot:=true` as independent, optional arguments. Logs are saved under `logs/<mode>/<timestamp>/` in the workspace root.
+
+### Changes
+
+1. **New `gc_logger.py`** (`ws/src/omx_dual_bringup/scripts/gc_logger.py`)
+   - ROS 2 node that subscribes to `/joint_states` and logs joint positions, velocities, and gravity-compensation efforts to CSV at configurable rate (default 100 Hz).
+   - Installed as executable in `omx_dual_bringup` package.
+
+2. **`single_robot_hardware.launch.py`** — added `enable_logger` arg (default `false`)
+   - Launches `gc_logger.py` under `/omx` namespace.
+   - Logs to `logs/single_gravity_comp/<timestamp>/`.
+
+3. **`dual_hardware_gravity_comp.launch.py`** — added `enable_logger` arg (default `false`)
+   - Launches two `gc_logger.py` nodes (robot1 + robot2).
+   - Logs to `logs/dual_gravity_comp/<timestamp>/robot1/` and `.../robot2/`.
+
+4. **`dual_hardware_variable_stiffness.launch.py`** — changed logger `output_dir`
+   - Was: `/tmp/variable_stiffness_logs/dual_hardware/robot{1,2}`
+   - Now: `logs/dual_variable_stiffness/<timestamp>/robot{1,2}`
+   - Moved `_d` walk-up (workspace root discovery) before logger block to avoid use-before-define.
+
+5. **`live_plot_logs.py`** — subplots split across up to 3 separate figures
+   - GC mode (3 groups) → 3 figures × 1 subplot each
+   - VS mode (13 groups) → 3 figures × ~4-5 subplots each
+   - Improves readability on standard displays.
+
+6. **Build/install**
+   - `omx_dual_bringup/CMakeLists.txt`: added `gc_logger.py` to install.
+   - `omx_dual_bringup/package.xml`: added `rclpy` and `sensor_msgs` exec deps.
+
+### Log directory structure
+
+```
+logs/
+├── single_gravity_comp/<YYYYMMDD_HHMMSS>/
+│   └── gravity_comp_<ts>.csv
+├── dual_gravity_comp/<YYYYMMDD_HHMMSS>/
+│   ├── robot1/gravity_comp_<ts>.csv
+│   └── robot2/gravity_comp_<ts>.csv
+└── dual_variable_stiffness/<YYYYMMDD_HHMMSS>/
+    ├── robot1/variable_stiffness_snapshot_<ts>.csv
+    └── robot2/variable_stiffness_snapshot_<ts>.csv
+```
+
+### Hardware test matrix — pending
+
+| Launch | `enable_live_plot` | `enable_logger` | Status |
+|--------|-------------------|-----------------|--------|
+| `single_robot_hardware.launch.py` | ✅ wired | ✅ wired | ⏳ Pending hardware test |
+| `dual_hardware_gravity_comp.launch.py` | ✅ wired | ✅ wired | ⏳ Pending hardware test |
+| `dual_hardware_variable_stiffness.launch.py` | ✅ wired | ✅ wired | ⏳ Pending hardware test |
+
+### Next steps (hardware test plan)
+
+1. **Single gravity comp** — connect 1 robot, run:
+   ```bash
+   ros2 launch omx_dual_bringup single_robot_hardware.launch.py enable_live_plot:=true enable_logger:=true
+   ```
+   Verify: live plot shows 3 figures (positions/velocities/efforts), CSV appears under `logs/single_gravity_comp/`.
+
+2. **Dual gravity comp** — connect 2 robots, run:
+   ```bash
+   ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py enable_live_plot:=true enable_logger:=true
+   ```
+   Verify: live plot shows dual traces (solid R1, dashed R2), CSVs appear under `logs/dual_gravity_comp/<ts>/robot{1,2}/`.
+
+3. **Dual variable stiffness** — connect 2 robots, run:
+   ```bash
+   ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py enable_live_plot:=true enable_logger:=true
+   ```
+   Verify: live plot shows 3 figures with VS groups, CSVs appear under `logs/dual_variable_stiffness/<ts>/robot{1,2}/`.
+
+4. For each test: let run ~30 seconds, Ctrl-C cleanly, confirm CSV files are non-empty and plot windows rendered without crash.
+
+---
+
 ## Update (2026-03-10 — Gazebo live plot stability)
 
 ### Completed Tests
@@ -113,18 +193,57 @@ Status: ✅ `tools/plot_logs.py` created and syntax-validated; built-in tests pa
 
 ### T1: Waypoint Live Deviation — Full Test Loop
 
-**Status:** Controller implements waypoint deviation (offset + absolute, cosine blend, auto-return). Gazebo-tested for basic activation/completion. Helper tools (`publish_waypoint.py`, `deviated_listener.py`) are single-shot, hardcoded to `/omx`, lack orientation support.
+**Status:** Basic waypoint deviation (offset + absolute, cosine blend, auto-return) is implemented and Gazebo-verified for activation/return. Next phase expands scope to include live stiffness switching on deviation, force-feedback triggered waypoint/stiffness changes, and a synced dual-hardware validation (both robots coordinated).
 
-**Key gaps:**
-- Tools hardcode `/omx` namespace — need `--namespace` arg for dual-robot
-- No orientation waypoint control
-- `deviated_listener.py` is single-shot — cannot observe return phase
-- No automated orchestrator script
-- Not tested on hardware; not tested on dual-robot
+**Objectives (next test phase):**
+- Validate live waypoint deviation end-to-end in sim and hardware (single + dual).
+- Validate automatic stiffness adjustment when a deviation is detected and when force-feedback exceeds thresholds.
+- Validate a synced dual-hardware launch where both robots accept simultaneous waypoint commands and coordinated stiffness updates without namespace bleed or controller activation failures.
 
-**Test matrix:** 4 modes (single/dual × sim/hw), offset + absolute waypoints, simultaneous dual deviation, torque saturation monitoring, singularity escape threshold check.
+**Key gaps to address before hardware runs:**
+- `publish_waypoint.py` and `deviated_listener.py` need `--namespace` and `--orientation` (RPY) CLI args and should support dual-robot usage.
+- `deviated_listener.py` must be extended to capture the full deviation cycle (activate → peak → return) rather than single-shot.
+- Add a `force_feedback_bridge` or extend `ee_force_sensor.py` to publish a `~/force_event` (Bool/Float) that can trigger waypoint/stiffness adjustments.
+- Create an orchestrator `tools/test_waypoint_deviation.py` that runs the scenario (spawn/bringup → logger on → waypoint publish → monitor → restore) and records pass/fail criteria.
 
-**Deliverables:** (1) Fix tool namespace args, (2) `tools/test_waypoint_deviation.py` orchestrator, (3) pass all 4 modes, (4) logger CSV shows clean `waypoint_active` transitions.
+**Test matrix:**
+- Modes: sim/single, sim/dual, hw/single, hw/dual
+- Waypoint types: offset (relative), absolute (cartesian + optional orientation)
+- Triggers: timed waypoint, force-threshold trigger, simultaneous dual commands
+- Observations: `waypoint_active`, `deviated_waypoint`, `~/ee_force` (magnitude), controller state transitions, torque clamps, `sigma_min` behavior
+
+**Automation & scripts (deliverables):**
+1. Update `tools/publish_waypoint.py`:
+  - Add `--namespace`, `--rpy`/`--orientation`, `--duration`, `--absolute|--offset` options.
+  - Return exit code reflecting publish success.
+2. Update `tools/deviated_listener.py`:
+  - Continuous capture mode, optional timeout, CSV output of full cycle (timestamp, joint-state, waypoint_active, ee_force, controller_state).
+3. Add `tools/force_event_bridge.py` (or extend `ee_force_sensor.py`):
+  - Publishes `~/force_event` when magnitude > threshold for N samples; supports hysteresis.
+4. Add `tools/test_waypoint_deviation.py` orchestrator:
+  - Launches the appropriate bringup (gazebo or hardware) via existing launch files with `enable_logger:=true`.
+  - Publishes waypoint(s), optionally toggles force-event emulator, waits for transition completion, collects logs, and evaluates pass/fail.
+5. Add CI-friendly unit tests for the above tools (`--test` mode) that mock topics if `ros2` network not available.
+
+**Acceptance criteria:**
+- On all 4 test modes the orchestrator reports `PASS` when:
+  - `waypoint_active` transitions from False→True→False within expected durations,
+  - `deviated_waypoint` was published while `waypoint_active==True`,
+  - If force-feedback threshold was exceeded, either (A) waypoint/stiffness changed as configured, or (B) a configured safety halt occurred,
+  - Controller state remains healthy (no unexpected `inactive`/`error` transitions), and
+  - No controller activation failures on robot2 (for dual hardware) after serialized bringup.
+
+**Logs & artifacts to collect:**
+- CSV logger output, `ros2 topic echo` snippets for `~/ee_force`, `~/force_event`, `~/waypoint_active`, `~/deviated_waypoint`, controller manager states, and `sigma_min` time series.
+- One short screen recording (or sequence of screenshots) of the live_plot combined figure during the deviation cycle.
+
+**Milestones:**
+1. Update helper tools (namespace/orientation, continuous listener) — dev → unit tests.
+2. Implement `force_event` publisher bridge and integrate with orchestrator.
+3. Validation runs in Gazebo (single → dual) and document results.
+4. Hardware single test (conservative stiffness) → hardware dual test (synced bringup with serialized spawners). 
+
+**Estimated timeline:** 2–3 days of focused work (tools + scripted runs) on a dev machine with Gazebo; additional 1–2 days for hardware runs depending on robot availability and power-cycle iterations.
 
 ### T2: EE Contact Force — Calibration & Latency
 

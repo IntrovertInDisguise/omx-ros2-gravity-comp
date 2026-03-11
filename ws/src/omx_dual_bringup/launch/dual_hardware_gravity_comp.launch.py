@@ -6,6 +6,7 @@
 
 import os
 import glob
+from datetime import datetime
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler, TimerAction
 from launch.conditions import IfCondition
@@ -67,11 +68,17 @@ def generate_launch_description():
             default_value=default_port2,
             description='Serial port for robot2'
         ),
+        DeclareLaunchArgument(
+            'enable_logger',
+            default_value='false',
+            description='Enable CSV data logging (gravity_comp)'
+        ),
     ]
 
     start_rviz = LaunchConfiguration('start_rviz')
     robot1_port = LaunchConfiguration('robot1_port')
     robot2_port = LaunchConfiguration('robot2_port')
+    enable_logger = LaunchConfiguration('enable_logger')
 
     # Get URDF via xacro for both robots
     urdf_robot1 = Command([
@@ -264,6 +271,36 @@ def generate_launch_description():
         condition=IfCondition(enable_live_plot),
     )
 
+    # --- Logger (gravity_comp) ---
+    _ws_root = _d  # reuse the walked-up root that found tools/
+    _log_stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    _log_dir_r1 = os.path.join(_ws_root, 'logs', 'dual_gravity_comp', _log_stamp, 'robot1')
+    _log_dir_r2 = os.path.join(_ws_root, 'logs', 'dual_gravity_comp', _log_stamp, 'robot2')
+
+    robot1_gc_logger = Node(
+        package='omx_dual_bringup',
+        executable='gc_logger.py',
+        namespace='robot1',
+        name='gc_data_logger',
+        parameters=[{'output_dir': _log_dir_r1}],
+        output='screen',
+        condition=IfCondition(enable_logger),
+    )
+    robot2_gc_logger = Node(
+        package='omx_dual_bringup',
+        executable='gc_logger.py',
+        namespace='robot2',
+        name='gc_data_logger',
+        parameters=[{'output_dir': _log_dir_r2}],
+        output='screen',
+        condition=IfCondition(enable_logger),
+    )
+
+    delay_loggers = TimerAction(
+        period=10.0,
+        actions=[robot1_gc_logger, robot2_gc_logger],
+    )
+
     nodes_to_start = [
         *declared_arguments,
         robot1_state_publisher,
@@ -274,6 +311,7 @@ def generate_launch_description():
         load_robot2_controllers,
         rviz_node,
         live_plot,
+        delay_loggers,
     ]
 
     return LaunchDescription(nodes_to_start)

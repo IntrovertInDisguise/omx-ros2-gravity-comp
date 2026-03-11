@@ -33,6 +33,33 @@ The robots can be controlled via:
 - **Headless Tests**: ✅ **PASSING** — Unit and launch tests using `launch_gazebo:=false` (fake‑hardware) pass in the devcontainer (Feb 2026).
 - **Real Gazebo**: ⚠️ **NOT RUN** — Full Gazebo integration tests require a host with `gzserver` and `gazebo_ros2_control`; these are skipped inside the devcontainer and in CI by default.
 
+## Latest (2026-03-11 — Logger + live plotter for all hardware modes)
+
+### Changes
+
+- **`enable_logger`** argument added to all 3 hardware launch files (default `false`). Logs saved to `logs/<mode>/<timestamp>/`.
+- **New `gc_logger.py`** for gravity-comp modes: logs joint positions, velocities, efforts to CSV.
+- **`enable_live_plot`** already wired in all 3 hardware launch files (default `true`).
+- **Live plotter** splits subplots across up to 3 separate figures for better readability.
+- Variable stiffness logger `output_dir` changed from `/tmp/...` to workspace-relative `logs/dual_variable_stiffness/<timestamp>/`.
+
+### Usage
+
+```bash
+# Single gravity comp — with both logger and live plot
+ros2 launch omx_dual_bringup single_robot_hardware.launch.py enable_live_plot:=true enable_logger:=true
+
+# Dual gravity comp
+ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py enable_live_plot:=true enable_logger:=true
+
+# Dual variable stiffness
+ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py enable_live_plot:=true enable_logger:=true
+```
+
+### Status
+
+All 3 hardware modes built and wired. Hardware testing pending (robot not connected).
+
 ## Latest (2026-03-10 — Gazebo live plot tests)
 
 ### Completed Tests

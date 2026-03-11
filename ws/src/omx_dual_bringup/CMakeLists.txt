@@ -12,6 +12,7 @@ install(DIRECTORY
 
 install(PROGRAMS
   scripts/verify_dual_setup.sh
+  scripts/gc_logger.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
