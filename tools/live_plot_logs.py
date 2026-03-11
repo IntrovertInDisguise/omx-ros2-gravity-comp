@@ -378,8 +378,8 @@ class LiveFigureManager:
 
         apply_pub_style()  # identical rcParams to plot_logs.py
 
-        self._fig = None
-        self._axes: List = []
+        self._figs: List = []
+        self._axes_flat: List = []
         # lines[group_idx][(rn, col)] = Line2D
         self._lines: Dict[int, Dict[tuple, object]] = {}
         self._built = False
@@ -393,54 +393,75 @@ class LiveFigureManager:
         )
         robot_label = "Dual-Robot" if self._robot_count > 1 else "Single-Robot"
 
-        fig, axes = plt.subplots(
-            n_groups, 1,
-            figsize=(18, max(2.4 * n_groups, 6)),
-            sharex=True, squeeze=False,
-        )
-        self._fig = fig
-        self._axes = axes.flatten()
-
-        fig.suptitle(
-            f"{robot_label} {mode_label} — Live",
-            fontsize=18, fontweight="bold", y=0.99,
-        )
+        # Split the groups across up to 3 separate figures for readability.
+        num_plots = min(3, n_groups) if n_groups > 0 else 1
+        groups_per_plot = (n_groups + num_plots - 1) // num_plots
 
         # Compact font sizes for the combined view
         tick_size = max(8, 14 - n_groups // 4)
 
-        for g_idx, (group_title, col_map) in enumerate(self._timeseries_groups):
-            ax = self._axes[g_idx]
-            ax.set_ylabel(group_title, fontsize=max(8, 13 - n_groups // 5),
-                          fontweight="bold")
-            ax.tick_params(labelsize=tick_size)
-            _enable_minor_grid(ax)
-            self._lines[g_idx] = {}
+        self._figs = []
+        self._axes_flat = []
 
-            col_names = list(col_map.keys())
-            col_labels = list(col_map.values())
+        for p in range(num_plots):
+            start = p * groups_per_plot
+            end = min(start + groups_per_plot, n_groups)
+            n_sub = max(1, end - start)
 
-            for rn in self._robot_nums:
-                robot_prefix = "" if self._robot_count == 1 else f"R{rn} "
-                for c_idx, col in enumerate(col_names):
-                    color = _HC_PALETTE[c_idx % len(_HC_PALETTE)]
-                    # For dual-robot: use solid for R1, dashed for R2
-                    ls = "-" if rn == 1 else "--"
-                    lw = 1.8 if self._robot_count == 1 else 1.4
-                    short_label = col_labels[c_idx].split("(")[0].strip()
-                    lbl = f"{robot_prefix}{short_label}"
-                    (line,) = ax.plot([], [], color=color, linewidth=lw,
-                                     linestyle=ls, label=lbl)
-                    self._lines[g_idx][(rn, col)] = line
+            fig, axes = plt.subplots(
+                n_sub, 1,
+                figsize=(18, max(2.4 * n_sub, 4)),
+                sharex=True, squeeze=False,
+            )
+            axes_list = axes.flatten()
+            self._figs.append(fig)
 
-            ax.legend(fontsize=max(6, 9 - n_groups // 5), loc="upper left",
-                      ncol=max(1, len(col_map)),
-                      framealpha=0.7, borderpad=0.3, handlelength=1.5)
+            # Title only on the first figure
+            if p == 0:
+                fig.suptitle(
+                    f"{robot_label} {mode_label} — Live",
+                    fontsize=18, fontweight="bold", y=0.99,
+                )
 
-        _add_time_xlabel(self._axes[-1])
-        self._axes[-1].tick_params(labelsize=tick_size)
-        fig.tight_layout(rect=[0, 0.01, 1.0, 0.96])
-        fig.subplots_adjust(hspace=0.35)
+            for local_idx, g_idx in enumerate(range(start, end)):
+                group_title, col_map = self._timeseries_groups[g_idx]
+                ax = axes_list[local_idx]
+                ax.set_ylabel(group_title, fontsize=max(8, 13 - n_groups // 5),
+                              fontweight="bold")
+                ax.tick_params(labelsize=tick_size)
+                _enable_minor_grid(ax)
+                self._lines[g_idx] = {}
+
+                col_names = list(col_map.keys())
+                col_labels = list(col_map.values())
+
+                for rn in self._robot_nums:
+                    robot_prefix = "" if self._robot_count == 1 else f"R{rn} "
+                    for c_idx, col in enumerate(col_names):
+                        color = _HC_PALETTE[c_idx % len(_HC_PALETTE)]
+                        ls = "-" if rn == 1 else "--"
+                        lw = 1.8 if self._robot_count == 1 else 1.4
+                        short_label = col_labels[c_idx].split("(")[0].strip()
+                        lbl = f"{robot_prefix}{short_label}"
+                        (line,) = ax.plot([], [], color=color, linewidth=lw,
+                                         linestyle=ls, label=lbl)
+                        self._lines[g_idx][(rn, col)] = line
+
+                ax.legend(fontsize=max(6, 9 - n_groups // 5), loc="upper left",
+                          ncol=max(1, len(col_map)),
+                          framealpha=0.7, borderpad=0.3, handlelength=1.5)
+
+                self._axes_flat.append(ax)
+
+            # Layout per figure
+            fig.tight_layout(rect=[0, 0.01, 1.0, 0.96])
+            fig.subplots_adjust(hspace=0.35)
+
+        # Add time xlabel to the last axis of the last figure
+        if self._axes_flat:
+            _add_time_xlabel(self._axes_flat[-1])
+            self._axes_flat[-1].tick_params(labelsize=tick_size)
+
         self._built = True
 
     # ---- per-cycle refresh ----------------------------------------------
@@ -452,7 +473,7 @@ class LiveFigureManager:
                 return
 
         for g_idx, (_group_title, col_map) in enumerate(self._timeseries_groups):
-            ax = self._axes[g_idx]
+            ax = self._axes_flat[g_idx]
             for col in col_map:
                 for rn in self._robot_nums:
                     snap   = snapshots.get(rn, {})
@@ -477,7 +498,12 @@ class LiveFigureManager:
             ax.relim()
             ax.autoscale_view()
 
-        self._fig.canvas.draw_idle()
+        # Draw each figure
+        for fig in self._figs:
+            try:
+                fig.canvas.draw_idle()
+            except Exception:
+                pass
         plt.pause(0.001)
 
 

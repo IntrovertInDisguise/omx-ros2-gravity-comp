@@ -6,6 +6,7 @@ Connects directly to Dynamixel servos — no Gazebo needed.
 
 import glob
 import os
+from datetime import datetime
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch.conditions import IfCondition
@@ -42,10 +43,16 @@ def generate_launch_description():
             default_value='true',
             description='Start live timeseries plotter (gravity_comp, /omx)'
         ),
+        DeclareLaunchArgument(
+            'enable_logger',
+            default_value='false',
+            description='Enable CSV data logging (gravity_comp)'
+        ),
     ]
 
     port = LaunchConfiguration('port')
     start_rviz = LaunchConfiguration('start_rviz')
+    enable_logger = LaunchConfiguration('enable_logger')
 
     controller_config = PathJoinSubstitution([
         FindPackageShare('omx_dual_bringup'),
@@ -134,6 +141,26 @@ def generate_launch_description():
         )],
     )
 
+    # --- Logger (gravity_comp) ---
+    _ws_root = _d  # reuse the walked-up root that found tools/
+    _log_stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    _log_dir = os.path.join(_ws_root, 'logs', 'single_gravity_comp', _log_stamp)
+
+    gc_logger = Node(
+        package='omx_dual_bringup',
+        executable='gc_logger.py',
+        namespace='omx',
+        name='gc_data_logger',
+        parameters=[{'output_dir': _log_dir}],
+        output='screen',
+        condition=IfCondition(enable_logger),
+    )
+
+    delay_logger = TimerAction(
+        period=5.0,
+        actions=[gc_logger],
+    )
+
     return LaunchDescription([
         *declared_arguments,
         robot_state_publisher,
@@ -141,4 +168,5 @@ def generate_launch_description():
         delay_controllers,
         rviz_node,
         live_plot,
+        delay_logger,
     ])

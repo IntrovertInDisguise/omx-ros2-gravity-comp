@@ -8,6 +8,7 @@ Each arm has its own independent trajectory and stiffness profile.
 
 import os
 import glob
+from datetime import datetime
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -297,7 +298,20 @@ def generate_launch_description():
         actions=[robot1_stiffness_loader, robot2_stiffness_loader],
     )
 
-    # Data loggers (optional)
+    # Resolve workspace root (walk up to find tools/)
+    _d = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(10):
+        if os.path.isfile(os.path.join(_d, 'tools', 'live_plot_logs.py')):
+            break
+        _d = os.path.dirname(_d)
+    _ws_root = _d
+    _live_plot_script = os.path.join(_ws_root, 'tools', 'live_plot_logs.py')
+
+    # Data loggers (optional) — logs/<mode>/<timestamp>/robot{1,2}
+    _log_stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    _log_dir_r1 = os.path.join(_ws_root, 'logs', 'dual_variable_stiffness', _log_stamp, 'robot1')
+    _log_dir_r2 = os.path.join(_ws_root, 'logs', 'dual_variable_stiffness', _log_stamp, 'robot2')
+
     robot1_logger = Node(
         package='omx_variable_stiffness_controller',
         executable='logger.py',
@@ -305,7 +319,7 @@ def generate_launch_description():
         name='csv_data_logger',
         parameters=[{
             'controller_name': 'robot1_variable_stiffness',
-            'output_dir': '/tmp/variable_stiffness_logs/dual_hardware/robot1',
+            'output_dir': _log_dir_r1,
         }],
         output='screen',
         condition=IfCondition(enable_logger),
@@ -318,7 +332,7 @@ def generate_launch_description():
         name='csv_data_logger',
         parameters=[{
             'controller_name': 'robot2_variable_stiffness',
-            'output_dir': '/tmp/variable_stiffness_logs/dual_hardware/robot2',
+            'output_dir': _log_dir_r2,
         }],
         output='screen',
         condition=IfCondition(enable_logger),
@@ -359,12 +373,6 @@ def generate_launch_description():
         condition=IfCondition(start_rviz)
     )
 
-    _d = os.path.dirname(os.path.abspath(__file__))
-    for _ in range(10):
-        if os.path.isfile(os.path.join(_d, 'tools', 'live_plot_logs.py')):
-            break
-        _d = os.path.dirname(_d)
-    _live_plot_script = os.path.join(_d, 'tools', 'live_plot_logs.py')
     live_plot = TimerAction(
         period=12.0,
         actions=[ExecuteProcess(
