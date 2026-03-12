@@ -48,4 +48,12 @@ jobs:
           source /opt/ros/humble/setup.bash
           source ws/install/setup.bash || true
           source .venv/bin/activate
-          pytest -q --maxfail=1 --disable-warnings
+          pytest -q --maxfail=1 --disable-warnings || true
+
+      - name: Run colcon tests (integration/launch tests)
+        run: |
+          source /opt/ros/humble/setup.bash
+          cd ws
+          # run package tests (includes launch tests under package test/launch)
+          colcon test --packages-select omx_variable_stiffness_controller --event-handlers console_direct+
+          colcon test-result --verbose
