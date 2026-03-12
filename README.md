@@ -1,6 +1,49 @@
 # Dual Open Manipulator X with Gravity Compensation & Variable Cartesian Impedance Control
 
-This package provides launch files and configurations for running **two independent Open Manipulator X robots** with:
+---
+
+## ⚠️ Mandatory Launch Rules (for all LLMs and all sessions)
+
+> **These three rules apply to every `ros2 launch` command in this project, no exceptions.**
+
+| # | Rule | Reason |
+|---|------|---------|
+| 1 | **Always source before launching** | `ros2` is only on PATH after sourcing ROS 2 + workspace setup. Without this, every launch command silently fails. |
+| 2 | **Always include `enable_logger:=true`** | Hardware runs must be logged. Logger and plotter are independent — logger costs nothing and every run may be the only captured data. |
+| 3 | **Always include `enable_live_plot:=true`** | Visual feedback is required during any hardware session to detect anomalies in real time. |
+
+### Canonical source + launch pattern
+
+```bash
+# Always source BOTH: system ROS 2 first, then workspace overlay
+source /opt/ros/humble/setup.bash
+source /workspaces/omx_ros2/install/setup.bash
+
+# Then launch — logger and live_plot are ALWAYS on
+ros2 launch <package> <launch_file>.launch.py enable_logger:=true enable_live_plot:=true [other_args]
+```
+
+### Complete hardware launch commands (copy-paste ready)
+
+```bash
+# === SINGLE gravity comp ===
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+ros2 launch omx_dual_bringup single_robot_hardware.launch.py \
+  port:=/dev/ttyUSB0 enable_logger:=true enable_live_plot:=true start_rviz:=false
+
+# === DUAL gravity comp ===
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py \
+  enable_logger:=true enable_live_plot:=true start_rviz:=false
+
+# === DUAL variable stiffness ===
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py \
+  enable_logger:=true enable_live_plot:=true start_rviz:=false
+```
+
+---
+ and configurations for running **two independent Open Manipulator X robots** with:
 - **Gravity Compensation**: Passive gravity compensation for compliant manipulation
 - **Variable Cartesian Impedance Control**: Time-varying stiffness/damping profiles for precise force control
 
@@ -46,14 +89,22 @@ The robots can be controlled via:
 ### Usage
 
 ```bash
-# Single gravity comp — with both logger and live plot
-ros2 launch omx_dual_bringup single_robot_hardware.launch.py enable_live_plot:=true enable_logger:=true
+# Always source first, then launch with logger and live_plot enabled
+
+# Single gravity comp
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+ros2 launch omx_dual_bringup single_robot_hardware.launch.py \
+  port:=/dev/ttyUSB0 enable_logger:=true enable_live_plot:=true start_rviz:=false
 
 # Dual gravity comp
-ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py enable_live_plot:=true enable_logger:=true
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py \
+  enable_logger:=true enable_live_plot:=true start_rviz:=false
 
 # Dual variable stiffness
-ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py enable_live_plot:=true enable_logger:=true
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py \
+  enable_logger:=true enable_live_plot:=true start_rviz:=false
 ```
 
 ### Status

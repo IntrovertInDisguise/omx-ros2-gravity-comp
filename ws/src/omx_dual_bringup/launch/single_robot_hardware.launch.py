@@ -94,23 +94,31 @@ def generate_launch_description():
         output='both',
     )
 
-    # Load controllers after controller_manager has time to start
-    load_jsb = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/omx/controller_manager',
-             'joint_state_broadcaster'],
-        output='screen'
+    # Load controllers with spawner Nodes after hardware has time to initialise.
+    # Hardware init (5 servos × ~20 InitItem calls) takes ~12 s; use 10 s delay
+    # so the spawners only fire once all state/command interfaces are available.
+    load_jsb = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'joint_state_broadcaster',
+            '--controller-manager', '/omx/controller_manager',
+        ],
+        output='screen',
     )
 
-    load_gravity = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/omx/controller_manager',
-             'gravity_comp_controller'],
-        output='screen'
+    load_gravity = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'gravity_comp_controller',
+            '--controller-manager', '/omx/controller_manager',
+        ],
+        output='screen',
     )
 
     delay_controllers = TimerAction(
-        period=3.0,
+        period=10.0,
         actions=[load_jsb, load_gravity],
     )
 
@@ -131,7 +139,7 @@ def generate_launch_description():
     _live_plot_script = os.path.join(_d, 'tools', 'live_plot_logs.py')
     enable_live_plot = LaunchConfiguration('enable_live_plot')
     live_plot = TimerAction(
-        period=5.0,
+        period=13.0,
         actions=[ExecuteProcess(
             cmd=['python3', _live_plot_script,
                  '--controller', 'gravity_comp',
@@ -157,7 +165,7 @@ def generate_launch_description():
     )
 
     delay_logger = TimerAction(
-        period=5.0,
+        period=13.0,
         actions=[gc_logger],
     )
 

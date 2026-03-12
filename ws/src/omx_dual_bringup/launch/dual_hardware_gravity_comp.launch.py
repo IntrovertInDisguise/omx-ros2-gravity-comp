@@ -179,34 +179,40 @@ def generate_launch_description():
         ]
     )
 
-    # Load and start controllers for Robot 1
-    load_joint_state_broadcaster_robot1 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot1/controller_manager',
-             'joint_state_broadcaster'],
-        output='screen'
+    # Load controllers with spawner Nodes.
+    # Hardware init (5 servos × ~20 InitItems) takes ~12 s per arm; 13 s gives
+    # a safe margin.  spawner handles retry/wait-for-CM automatically.
+    load_joint_state_broadcaster_robot1 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['joint_state_broadcaster',
+                   '--controller-manager', '/robot1/controller_manager'],
+        output='screen',
     )
 
-    load_gravity_comp_controller_robot1 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot1/controller_manager',
-             'robot1_gravity_comp'],
-        output='screen'
+    load_gravity_comp_controller_robot1 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['robot1_gravity_comp',
+                   '--controller-manager', '/robot1/controller_manager'],
+        output='screen',
     )
 
     # Load and start controllers for Robot 2
-    load_joint_state_broadcaster_robot2 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot2/controller_manager',
-             'joint_state_broadcaster'],
-        output='screen'
+    load_joint_state_broadcaster_robot2 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['joint_state_broadcaster',
+                   '--controller-manager', '/robot2/controller_manager'],
+        output='screen',
     )
 
-    load_gravity_comp_controller_robot2 = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             '-c', '/robot2/controller_manager',
-             'robot2_gravity_comp'],
-        output='screen'
+    load_gravity_comp_controller_robot2 = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['robot2_gravity_comp',
+                   '--controller-manager', '/robot2/controller_manager'],
+        output='screen',
     )
 
     # Event handlers to load controllers after controller manager starts
@@ -215,7 +221,7 @@ def generate_launch_description():
             target_action=robot1_controller_manager,
             on_start=[
                 TimerAction(
-                    period=8.0,
+                    period=13.0,
                     actions=[
                         load_joint_state_broadcaster_robot1,
                         load_gravity_comp_controller_robot1,
@@ -230,7 +236,7 @@ def generate_launch_description():
             target_action=robot2_controller_manager,
             on_start=[
                 TimerAction(
-                    period=8.0,
+                    period=13.0,
                     actions=[
                         load_joint_state_broadcaster_robot2,
                         load_gravity_comp_controller_robot2,
@@ -260,7 +266,7 @@ def generate_launch_description():
     enable_live_plot = LaunchConfiguration('enable_live_plot')
 
     live_plot = TimerAction(
-        period=5.0,
+        period=16.0,
         actions=[ExecuteProcess(
             cmd=['python3', _live_plot_script,
                  '--controller', 'gravity_comp',
@@ -297,7 +303,7 @@ def generate_launch_description():
     )
 
     delay_loggers = TimerAction(
-        period=10.0,
+        period=16.0,
         actions=[robot1_gc_logger, robot2_gc_logger],
     )
 

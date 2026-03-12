@@ -4,6 +4,25 @@ This document captures the current state of the workspace, issues encountered, r
 
 ---
 
+## ⚠️ Mandatory Launch Rules (enforced for all LLMs and all sessions)
+
+> **These three rules are non-negotiable and apply to every `ros2 launch` invocation in this project.**
+
+| # | Rule | Detail |
+|---|------|--------|
+| 1 | **Always source before launching** | Run `source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash` before any `ros2` command. `ros2` is NOT on PATH otherwise. |
+| 2 | **Always include `enable_logger:=true`** | Every hardware launch must log. The logger is independent from the plotter — there is no cost and logged data cannot be recovered after the fact. |
+| 3 | **Always include `enable_live_plot:=true`** | Live plot must be enabled during any hardware session for real-time anomaly detection. |
+
+### Canonical form (copy-paste for any hardware launch)
+
+```bash
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+ros2 launch <package> <launch_file>.launch.py enable_logger:=true enable_live_plot:=true [other_args]
+```
+
+---
+
 ## Update (2026-03-11 — Logger + live plotter wired for all hardware modes)
 
 ### Summary
@@ -64,19 +83,25 @@ logs/
 
 1. **Single gravity comp** — connect 1 robot, run:
    ```bash
-   ros2 launch omx_dual_bringup single_robot_hardware.launch.py enable_live_plot:=true enable_logger:=true
+   source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+   ros2 launch omx_dual_bringup single_robot_hardware.launch.py \
+     port:=/dev/ttyUSB0 enable_logger:=true enable_live_plot:=true start_rviz:=false
    ```
    Verify: live plot shows 3 figures (positions/velocities/efforts), CSV appears under `logs/single_gravity_comp/`.
 
 2. **Dual gravity comp** — connect 2 robots, run:
    ```bash
-   ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py enable_live_plot:=true enable_logger:=true
+   source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+   ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py \
+     enable_logger:=true enable_live_plot:=true start_rviz:=false
    ```
    Verify: live plot shows dual traces (solid R1, dashed R2), CSVs appear under `logs/dual_gravity_comp/<ts>/robot{1,2}/`.
 
 3. **Dual variable stiffness** — connect 2 robots, run:
    ```bash
-   ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py enable_live_plot:=true enable_logger:=true
+   source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+   ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py \
+     enable_logger:=true enable_live_plot:=true start_rviz:=false
    ```
    Verify: live plot shows 3 figures with VS groups, CSVs appear under `logs/dual_variable_stiffness/<ts>/robot{1,2}/`.
 
