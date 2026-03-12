@@ -56,13 +56,13 @@ The robots can be controlled via:
 
 | Controller | Mode | Status | Notes |
 |------------|------|--------|-------|
-| **Gravity Compensation** | Dual Hardware | ✅ **TESTED** | Verified Feb 2026, two physical OM-X robots |
-| **Gravity Compensation** | Single Hardware | ✅ **TESTED** | Verified Feb 2026 |
+| **Gravity Compensation** | Dual Hardware | ✅ **TESTED** | Verified Feb 2026 and Mar 2026 (logger + live_plot confirmed, 9400+ rows/robot) |
+| **Gravity Compensation** | Single Hardware | ✅ **TESTED** | Verified Feb 2026 and Mar 2026 (logger + live_plot confirmed, 8099 rows) |
 | **Gravity Compensation** | Dual Gazebo | ⚠️ Partial | Builds and launches; headless mode now works with fake hardware (plugin mismatch avoided). |
 | **Gravity Compensation** | Single Gazebo | ✅ **TESTED** | Verified Mar 2026 — single-robot Gazebo gravity compensation works (live-plot subscription verified). |
 | **Variable Stiffness** | Single Sim | ✅ **TESTED** | Verified Feb 2026 with mock hardware |
 | **Variable Stiffness** | Single Hardware | ✅ **TESTED** | Verified March 2026 |
-| **Variable Stiffness** | Dual Hardware | ✅ **TESTED** | Verified Mar 2026: both robots complete full state machine cycle, zero errors. |
+| **Variable Stiffness** | Dual Hardware | ✅ **TESTED** | Verified Mar 2026: full state machine, logger 25k+ snapshot rows + events per robot, live_plot confirmed. |
 | **Variable Stiffness** | Single Gazebo | ✅ **TESTED** | Gazebo verified Mar 2026: singularity-safe IK, joint-space homing, EE stays x>0 throughout. |
 | **Variable Stiffness** | Dual Gazebo | ✅ **TESTED** | Verified Mar 2026: both robots complete full state machine cycle. Requires patched libgazebo_ros2_control.so (see tools/patches/). |
 

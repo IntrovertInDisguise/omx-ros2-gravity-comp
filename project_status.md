@@ -23,6 +23,35 @@ ros2 launch <package> <launch_file>.launch.py enable_logger:=true enable_live_pl
 
 ---
 
+## Update (2026-03-12 — Hardware validation: all 3 modes confirmed ✅)
+
+### Summary
+
+All 3 hardware launch modes tested on physical robots with `enable_logger:=true enable_live_plot:=true`. All passed. Controller spawn timing bugs fixed across GC launch files.
+
+### Results
+
+| Launch | Controllers | Logger | Live Plot | CSV rows |
+|--------|-------------|--------|-----------|----------|
+| `single_robot_hardware` | ✅ active | ✅ running | ✅ running | 8,099 |
+| `dual_hardware_gravity_comp` | ✅ active (R1+R2) | ✅ running | ✅ running | 9,408 / 9,427 (R1/R2) |
+| `dual_hardware_variable_stiffness` | ✅ active (R1+R2) | ✅ running | ✅ running | 25,270 / 25,336 snapshot + 463 / 435 events (R1/R2) |
+
+### Bugs fixed
+
+- **`single_robot_hardware.launch.py`**: `TimerAction(period=3.0)` + `ExecuteProcess(ros2 control load_controller)` → `TimerAction(period=10.0)` + `spawner` Nodes. Live_plot and logger timers bumped to 13s.
+- **`dual_hardware_gravity_comp.launch.py`**: `TimerAction(period=8.0)` + `ExecuteProcess` → `TimerAction(period=13.0)` + `spawner` Nodes. Live_plot and logger timers bumped to 16s.
+- Root cause: hardware init (~12–15s for 5 servos) completed after the old timers fired; `spawner` Nodes have built-in CM retry logic, `ExecuteProcess` does not.
+
+### Mandatory launch rules recorded
+
+Three rules now documented at the top of both `README.md` and `project_status.md` for all LLMs:
+1. Always source (`/opt/ros/humble/setup.bash` + workspace `install/setup.bash`) before any launch.
+2. Always include `enable_logger:=true`.
+3. Always include `enable_live_plot:=true`.
+
+---
+
 ## Update (2026-03-11 — Logger + live plotter wired for all hardware modes)
 
 ### Summary
@@ -71,13 +100,13 @@ logs/
     └── robot2/variable_stiffness_snapshot_<ts>.csv
 ```
 
-### Hardware test matrix — pending
+### Hardware test matrix — ✅ ALL PASSED (Mar 12, 2026)
 
-| Launch | `enable_live_plot` | `enable_logger` | Status |
-|--------|-------------------|-----------------|--------|
-| `single_robot_hardware.launch.py` | ✅ wired | ✅ wired | ⏳ Pending hardware test |
-| `dual_hardware_gravity_comp.launch.py` | ✅ wired | ✅ wired | ⏳ Pending hardware test |
-| `dual_hardware_variable_stiffness.launch.py` | ✅ wired | ✅ wired | ⏳ Pending hardware test |
+| Launch | `enable_live_plot` | `enable_logger` | Status | CSV rows (latest run) |
+|--------|-------------------|-----------------|--------|-----------------------|
+| `single_robot_hardware.launch.py` | ✅ running | ✅ running | ✅ **TESTED** | 8,099 (1 robot) |
+| `dual_hardware_gravity_comp.launch.py` | ✅ running | ✅ running | ✅ **TESTED** | 9,408 / 9,427 (R1/R2) |
+| `dual_hardware_variable_stiffness.launch.py` | ✅ running | ✅ running | ✅ **TESTED** | 25,270 / 25,336 snapshot + 463 / 435 events (R1/R2) |
 
 ### Next steps (hardware test plan)
 
