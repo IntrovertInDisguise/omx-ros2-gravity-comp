@@ -57,3 +57,19 @@ jobs:
           # run package tests (includes launch tests under package test/launch)
           colcon test --packages-select omx_variable_stiffness_controller --event-handlers console_direct+
           colcon test-result --verbose
+
+      - name: Collect test artifacts
+        # always collect so results are available even on success
+        if: always()
+        run: |
+          mkdir -p artifacts
+          # copy any gazebo screenshots or logs that the tests might have
+          cp /tmp/gz*.png artifacts/ 2>/dev/null || true
+          cp /tmp/*.log artifacts/ 2>/dev/null || true
+          # workspace-specific logs
+          cp -r ws/logs artifacts/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: test-artifacts
+          path: artifacts
