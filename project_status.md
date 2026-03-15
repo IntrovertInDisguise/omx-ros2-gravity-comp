@@ -387,6 +387,48 @@ Status: ✅ `tools/plot_logs.py` created and syntax-validated; built-in tests pa
 - Dual-hardware variable stiffness configs now use the identical root/tip kinematic chain as the stable single-hardware configuration.
 - Ready for dual-hardware variable stiffness **hardware testing**.
 
+---
+
+## Changelog (2026-03-15)
+
+- Added CSV units comment row to `scripts/logger.py` snapshot and events CSV outputs to make recorded units explicit for downstream analysis.
+- Removed legacy/commented duplicate logger implementation from the bottom of `scripts/logger.py`.
+- Exposed controller parameter `velocity_filter_alpha` and read it from YAML so derivative filtering can be tuned without rebuilding the controller.
+- Added `~/controller_state` publisher in `OmxVariableStiffnessController` and publish a readable state string periodically for easier phase segmentation in logs.
+- Tuned coordinator defaults in `tools/dual_press_coordinator.py` for faster detection/cooldown during resync experiments.
+- Updated coordinated YAMLs to set `velocity_filter_alpha` to 0.4 for aggressive derivative response during tuning runs.
+- Extended `tools/plot_logs.py` to gracefully handle `sync_status` (categorical string) as time-bands and to skip non-numeric columns safely.
+- Implemented small lint fixes and removed unused imports in `tools/plot_logs.py`.
+- Ran a full workspace `colcon build` and verified 15 packages built successfully after edits.
+
+## Remaining TODOs (high-level)
+
+The following items remain outstanding and are recorded here so they are visible to the team and to future sessions of this agent:
+
+- Add unit tests for core utilities and tools:
+  - `test_coordinator_logic.py`
+  - `test_waypoint_message.py`
+  - `test_yaml_configs.py`
+  - `test_detour_logic.py`
+  - `test_logger_columns.py`
+- Extend `scripts/load_stiffness.py` with `--analyze` and `--generate-coordinated` modes for batch YAML generation and validation.
+- Update `tools/deviated_listener.py` for continuous capture mode and CSV output of full deviation cycles (activate → peak → return).
+- Implement `force_event_bridge.py` or extend `ee_force_sensor.py` to publish `~/force_event` (hysteresis, threshold, and publish rate).
+- Add `tools/test_waypoint_deviation.py` orchestrator to run bringup → publish → monitor → evaluate for both sim and hardware.
+- Add CSV units comment row to any remaining logger CSVs and add `controller_state` column consumers where useful.
+- Add `controller_state` topic consumers in logger or post-processing tools to segment logs by controller phase.
+- Finish documentation: test orchestration steps and acceptance criteria in repository docs and `README.md`.
+- Run automated verification suites:
+  - single detour roundtrip (Gazebo headless)
+  - dual press sync (Gazebo headless)
+  - logger capture verification and `tools/plot_logs.py` rendering tests (requires `matplotlib`, `pandas`, `numpy` on host)
+- Hardware test plan execution (requires robot availability):
+  - H1: Single detour test (conservative stiffness)
+  - H2: Dual press sync hardware test
+  - H3: Logger + live plot capture detour (hardware)
+
+If you want I can begin taking these items in priority order; tell me which to start next (unit tests, deviated listener, force bridge, or orchestrator).
+
 ## Update (2026-03-05 — Gazebo GUI Confirmed + Safety Hardening)
 
 ### Session Summary
