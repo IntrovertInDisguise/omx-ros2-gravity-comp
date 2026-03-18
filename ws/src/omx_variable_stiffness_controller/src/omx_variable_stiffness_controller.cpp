@@ -2190,6 +2190,8 @@ bool OmxVariableStiffnessController::validate_and_compute_trajectory_()
     target_orientation_euler_.y(),
     target_orientation_euler_.z());
 
+  (void)target_rot;
+
   double min_manip = std::numeric_limits<double>::max();
 
   // 2. Walk BACKWARD from s=1 (end) to s=0 (start), warm-starting each from

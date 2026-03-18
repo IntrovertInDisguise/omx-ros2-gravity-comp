@@ -284,7 +284,7 @@ bool GazeboSystem::extractPIDFromParameters(
     };
   bool are_pids_set = true;
   double kp, ki, kd, max_integral_error, min_integral_error;
-  bool antiwindup;
+  bool antiwindup = false;
   are_pids_set &= get_pid_entry("kp", kp);
   are_pids_set &= get_pid_entry("ki", ki);
   are_pids_set &= get_pid_entry("kd", kd);
