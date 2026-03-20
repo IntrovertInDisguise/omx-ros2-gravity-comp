@@ -181,14 +181,25 @@ def generate_launch_description():
     # ── Gazebo environment ───────────────────────────────────────────────
     plugin_path = SetEnvironmentVariable(
         'GAZEBO_PLUGIN_PATH',
-        ['/opt/ros/humble/lib:',
-         EnvironmentVariable('GAZEBO_PLUGIN_PATH', default_value='')]
+        [
+          # Prefer the workspace-built gazebo_ros2_control plugin when available.
+          '/workspaces/omx_ros2/ws/build/gazebo_ros2_control',
+          '/workspaces/omx_ros2/ws/install/gazebo_ros2_control/lib',
+          '/opt/ros/humble/lib',
+          EnvironmentVariable('GAZEBO_PLUGIN_PATH', default_value='')
+        ]
     )
     ld_library_path = SetEnvironmentVariable(
         'LD_LIBRARY_PATH',
-        ['/opt/ros/humble/lib/x86_64-linux-gnu:',
+        ['/workspaces/omx_ros2/ws/build/gazebo_ros2_control:',
+         '/workspaces/omx_ros2/ws/install/gazebo_ros2_control/lib:',
+         '/opt/ros/humble/lib/x86_64-linux-gnu:',
          '/opt/ros/humble/lib:',
          EnvironmentVariable('LD_LIBRARY_PATH', default_value='')]
+    )
+    preload_lib = SetEnvironmentVariable(
+        'LD_PRELOAD',
+        '/workspaces/omx_ros2/ws/build/gazebo_ros2_control/libgazebo_ros2_control.so'
     )
     set_libgl_sw = SetEnvironmentVariable('LIBGL_ALWAYS_SOFTWARE', '1')
 
@@ -242,9 +253,9 @@ def generate_launch_description():
         output='screen',
     )
 
-    # Delay spawns to let gzserver start
+    # Delay spawns to let gzserver start (service /spawn_entity can take a while to appear)
     delay_spawn_r1 = TimerAction(
-        period=3.0,
+        period=10.0,
         actions=[spawn_robot1],
         condition=IfCondition(effective_gazebo),
     )
@@ -307,8 +318,14 @@ def generate_launch_description():
         condition=IfCondition(effective_gazebo),
     )
     #   vs_r1 exits → NOW spawn robot2 (robot1 fully up)
+    # Add a short delay after robot1's variable-stiffness spawner exits
+    # before spawning robot2 to ensure the first plugin's initialization
+    # fully completes and avoids cross-namespace contamination.
     spawn_r2_after_r1_complete = RegisterEventHandler(
-        OnProcessExit(target_action=load_vs_r1, on_exit=[spawn_robot2]),
+        OnProcessExit(
+            target_action=load_vs_r1,
+            on_exit=[TimerAction(period=8.0, actions=[spawn_robot2])]
+        ),
         condition=IfCondition(effective_gazebo),
     )
     #   spawn_r2 exits → load jsb_r2
@@ -518,6 +535,7 @@ def generate_launch_description():
         set_libgl_sw,
         plugin_path,
         ld_library_path,
+        preload_lib,
         # Robot state publishers (always needed)
         robot1_state_publisher,
         robot2_state_publisher,

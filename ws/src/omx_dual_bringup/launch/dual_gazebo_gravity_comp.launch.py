@@ -16,7 +16,7 @@ from launch.actions import (
     TimerAction,
     UnsetEnvironmentVariable,
 )
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import (
     Command,
@@ -458,6 +458,7 @@ def generate_launch_description():
             controller_config_robot1,
         ],
         output='screen',
+        condition=UnlessCondition(LaunchConfiguration('launch_gazebo')),
     )
 
     ros2_control_r2 = Node(
@@ -470,6 +471,7 @@ def generate_launch_description():
             controller_config_robot2,
         ],
         output='screen',
+        condition=UnlessCondition(LaunchConfiguration('launch_gazebo')),
     )
 
     rviz_node = Node(

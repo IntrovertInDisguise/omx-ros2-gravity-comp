@@ -49,12 +49,7 @@
 
 /robot2/robot1_gravity_comp:
   ros__parameters:
-    joints:
-      - robot1_joint1
-      - robot1_joint2
-      - robot1_joint3
-      - robot1_joint4
-    root_link: world
-    tip_link: robot1_link5
-    torque_scale: 200.0
-    robot_description_node: /robot1/robot_state_publisher
+    # Intentionally removed robot1 joint mapping under /robot2 namespace to
+    # avoid namespace leakage which can cause the robot2 controller manager to
+    # attempt to claim interfaces that don't exist in the robot2 model.
+    # If you need robot1 params they should be placed under /robot1 namespace.

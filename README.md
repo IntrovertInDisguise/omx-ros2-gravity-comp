@@ -2,6 +2,30 @@
 
 ---
 
+## 🧩 Quick Start (source/build/launch, no sudo)
+
+```bash
+# 1) Source ROS 2 + workspace overlay
+source /opt/ros/humble/setup.bash
+source /workspaces/omx_ros2/ws/install/setup.bash
+
+# 2) Build (use inside container or with permissions already satisfied)
+cd /workspaces/omx_ros2/ws
+colcon build --symlink-install --packages-select \
+  open_manipulator_x_description omx_gravity_comp_controller omx_variable_stiffness_controller omx_dual_bringup
+
+# 3) Source workspace after build
+source /workspaces/omx_ros2/ws/install/setup.bash
+
+# 4) Launch dual variable stiffness simulation (logger+live_plot)
+ros2 launch omx_variable_stiffness_controller dual_gazebo_variable_stiffness.launch.py \
+  gui:=true enable_logger:=true enable_live_plot:=true start_rviz:=false
+```
+
+> If your system needs dependencies, do that out of band (admin user or pre-configured container). This README now avoids `sudo` for reproducibility.
+
+---
+
 ## ⚠️ Mandatory Launch Rules (for all LLMs and all sessions)
 
 > **These three rules apply to every `ros2 launch` command in this project, no exceptions.**
@@ -40,6 +64,22 @@ ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py \
 source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
 ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py \
   enable_logger:=true enable_live_plot:=true start_rviz:=false
+
+# === DUAL variable stiffness in Gazebo (with obstacle, liveplot + force logger) ===
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/install/setup.bash
+bash /workspaces/omx_ros2/tools/dual_gazebo_force_test.sh
+
+# === DUAL opposing push test ===
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash
+python3 /workspaces/omx_ros2/tools/dual_gazebo_opposing_push.py --duration 20
+
+# Live plot with saving screenshots (headless/WSL friendly)
+source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash
+python3 /workspaces/omx_ros2/tools/live_plot_logs.py \
+  --controller variable_stiffness \
+  --namespace /robot1/robot1_variable_stiffness \
+  --namespace2 /robot2/robot2_variable_stiffness \
+  --screenshot-dir /tmp/live_plot_screenshots
 ```
 
 ---
@@ -465,11 +505,11 @@ cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
 # Tools + rosdep (skip if you already have these)
-sudo apt update
-sudo apt install -y python3-colcon-common-extensions python3-rosdep
+apt update
+apt install -y python3-colcon-common-extensions python3-rosdep
 
 # rosdep is the easiest way to pull the correct ROS/Ubuntu packages
-sudo rosdep init 2>/dev/null || true
+rosdep init 2>/dev/null || true
 rosdep update || true
 rosdep install --from-paths src --ignore-src -r -y || true
 ```
@@ -510,8 +550,8 @@ cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
 # Install OS/ROS dependencies (recommended for fresh machines)
-sudo apt update
-sudo apt install -y python3-colcon-common-extensions python3-rosdep python3-serial
+apt update
+apt install -y python3-colcon-common-extensions python3-rosdep python3-serial
 rosdep update || true
 rosdep install --from-paths src --ignore-src -r -y || true
 
@@ -566,8 +606,8 @@ cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
 # Install OS/ROS dependencies (recommended for fresh machines)
-sudo apt update
-sudo apt install -y python3-colcon-common-extensions python3-rosdep \
+apt update
+apt install -y python3-colcon-common-extensions python3-rosdep \
   ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control
 rosdep update || true
 rosdep install --from-paths src --ignore-src -r -y || true
@@ -834,8 +874,8 @@ cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
 # Install OS/ROS dependencies (recommended for fresh machines)
-sudo apt update
-sudo apt install -y python3-colcon-common-extensions python3-rosdep \
+apt update
+apt install -y python3-colcon-common-extensions python3-rosdep \
   ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control
 rosdep update || true
 rosdep install --from-paths src --ignore-src -r -y || true
@@ -1122,8 +1162,8 @@ cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
 # Install dependencies
-sudo apt update
-sudo apt install -y ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control \
+apt update
+apt install -y ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control \
   liborocos-kdl-dev ros-humble-kdl-parser libeigen3-dev
 
 # Build
@@ -1159,8 +1199,8 @@ cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
 # Install dependencies
-sudo apt update
-sudo apt install -y liborocos-kdl-dev ros-humble-kdl-parser libeigen3-dev
+apt update
+apt install -y liborocos-kdl-dev ros-humble-kdl-parser libeigen3-dev
 
 # Build
 colcon build --symlink-install --packages-select \
@@ -1201,8 +1241,8 @@ cd /workspaces/omx_ros2/ws
 source /opt/ros/humble/setup.bash
 
 # Install dependencies
-sudo apt update
-sudo apt install -y ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control \
+apt update
+apt install -y ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control \
   liborocos-kdl-dev ros-humble-kdl-parser libeigen3-dev
 
 # Build
@@ -1446,8 +1486,9 @@ ls -la /dev/ttyUSB* /dev/ttyACM*
 ls -la /dev/serial/by-id/
 
 # Check port permissions
-sudo usermod -a -G dialout $USER
-# May need to log out and back in
+# If your user is not in the dialout group, add it via your system admin.
+#   usermod -a -G dialout $USER
+# Then log out/in or restart your session.
 
 # Manually specify ports
 ros2 launch omx_dual_bringup dual_hardware_gravity_comp.launch.py \
@@ -1476,8 +1517,8 @@ ros2 run controller_manager spawner robot1/gravity_comp_controller \
 Make sure Gazebo is installed:
 
 ```bash
-sudo apt-get update
-sudo apt-get install ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control
+apt-get update
+apt-get install ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros2-control
 ```
 
 ### Gazebo "Address already in use"

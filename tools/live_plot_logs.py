@@ -54,7 +54,30 @@ from typing import Deque, Dict, List, Optional
 # matplotlib — must be configured before any other import uses it.
 # ---------------------------------------------------------------------------
 import matplotlib
-matplotlib.use("TkAgg")
+
+def _choose_matplotlib_backend():
+    # Use GUI backend when requested via env var, otherwise fall back to headless.
+    use_gui = os.environ.get('LIVEPLOT_USE_GUI', '0') in ('1', 'true', 'True')
+    display = os.environ.get('DISPLAY', '')
+
+    if use_gui and display:
+        for backend in ['TkAgg', 'Qt5Agg', 'QtAgg', 'GTK3Agg']:
+            try:
+                matplotlib.use(backend)
+                print(f'[live_plot_logs] Using matplotlib GUI backend: {backend}')
+                return
+            except Exception as exc:
+                print(f'[live_plot_logs] Failed to set backend {backend}: {exc}')
+        print('[live_plot_logs] No GUI backend available; falling back to Agg.')
+    else:
+        if use_gui and not display:
+            print('[live_plot_logs] LIVEPLOT_USE_GUI set but DISPLAY not set; falling back to Agg.')
+        else:
+            print('[live_plot_logs] using Agg backend (headless).')
+
+    matplotlib.use('Agg')
+
+_choose_matplotlib_backend()
 import matplotlib.pyplot as plt
 
 # ---------------------------------------------------------------------------
@@ -362,11 +385,29 @@ class LiveFigureManager:
         window_s: float,
         robot_count: int,
         controller_mode: str,
+        screenshot_dir: Optional[str] = None,
+        screenshot_rate: float = 2.0,
     ) -> None:
         self._robot_nums    = robot_nums
         self._window_s      = window_s
         self._robot_count   = robot_count
         self._controller_mode = controller_mode
+        self._screenshot_dir = screenshot_dir
+        self._screenshot_rate = float(screenshot_rate)
+        self._last_screenshot = 0.0
+
+        # If screenshots are requested, ensure the directory exists and create
+        # a small marker file so external monitors can detect the live-plot
+        # process even if PNG creation is delayed or failing.
+        self._marker_path = None
+        if self._screenshot_dir:
+            try:
+                os.makedirs(self._screenshot_dir, exist_ok=True)
+                self._marker_path = os.path.join(self._screenshot_dir, '.live_plot_active')
+                with open(self._marker_path, 'w') as mf:
+                    mf.write(f'pid:{os.getpid()}\nstart:{int(time.time())}\n')
+            except Exception as exc:
+                print(f'[live_plot_logs] Failed to create screenshot dir/marker: {exc}')
 
         # Select the right group/label dictionaries
         if controller_mode == MODE_GC:
@@ -504,6 +545,30 @@ class LiveFigureManager:
                 fig.canvas.draw_idle()
             except Exception:
                 pass
+
+        # In headless mode or when user requested it, save snapshot images
+        if self._screenshot_dir:
+            now = time.time()
+            if now - self._last_screenshot >= self._screenshot_rate:
+                if not os.path.isdir(self._screenshot_dir):
+                    os.makedirs(self._screenshot_dir, exist_ok=True)
+                for i, fig in enumerate(self._figs, start=1):
+                    fname = os.path.join(
+                        self._screenshot_dir,
+                        f"live_plot_{i}_{int(now)}.png"
+                    )
+                    try:
+                        fig.savefig(fname, dpi=120)
+                    except Exception as exc:
+                        print(f'[live_plot_logs] Failed to save screenshot {fname}: {exc}')
+                # update marker file timestamp so external monitors see activity
+                if getattr(self, '_marker_path', None):
+                    try:
+                        with open(self._marker_path, 'a') as mf:
+                            mf.write(f'ts:{int(now)}\n')
+                    except Exception:
+                        pass
+                self._last_screenshot = now
         plt.pause(0.001)
 
 
@@ -543,6 +608,14 @@ def build_cli() -> argparse.ArgumentParser:
         "--interval", type=float, default=DEFAULT_INTERVAL_S,
         help=f"Plot refresh interval in seconds (default: {DEFAULT_INTERVAL_S})",
     )
+    p.add_argument(
+        "--screenshot-dir", default=None,
+        help="Directory to save periodic plot screenshots (enables non-interactive mode)",
+    )
+    p.add_argument(
+        "--screenshot-rate", type=float, default=2.0,
+        help="Seconds between screenshots when screenshot-dir is set",
+    )
     return p
 
 
@@ -575,7 +648,14 @@ def main() -> None:
     spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     spin_thread.start()
 
-    fig_mgr = LiveFigureManager(robot_nums, args.window, robot_count, controller_mode)
+    fig_mgr = LiveFigureManager(
+        robot_nums,
+        args.window,
+        robot_count,
+        controller_mode,
+        screenshot_dir=args.screenshot_dir,
+        screenshot_rate=args.screenshot_rate,
+    )
     plt.ion()
 
     ns_str = ", ".join(f"robot{rn}={ns}" for rn, ns in namespaces.items())

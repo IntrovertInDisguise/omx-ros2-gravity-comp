@@ -59,6 +59,46 @@ using namespace std::chrono_literals;
 namespace gazebo_ros2_control
 {
 
+namespace
+{
+  // Shared executor + spin thread for all gazebo_ros2_control plugin instances
+  // in a single gzserver process. This avoids multiple executors and signal
+  // handler re-registration (which can cause segfaults when multiple plugins
+  // are active in the same process).
+  static std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
+  static std::thread g_executor_thread;
+  static std::atomic<int> g_executor_ref_count{0};
+  static std::atomic<bool> g_executor_running{false};
+  static std::mutex g_executor_mutex;
+
+  void ensure_global_executor()
+  {
+    std::lock_guard<std::mutex> lock(g_executor_mutex);
+    if (!g_executor) {
+      g_executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+      g_executor_running = true;
+      g_executor_thread = std::thread([]() {
+        while (g_executor_running && rclcpp::ok()) {
+          g_executor->spin_once(std::chrono::milliseconds(10));
+        }
+      });
+    }
+    g_executor_ref_count++;
+  }
+
+  void drop_global_executor()
+  {
+    std::lock_guard<std::mutex> lock(g_executor_mutex);
+    if (--g_executor_ref_count <= 0) {
+      g_executor_running = false;
+      if (g_executor_thread.joinable()) {
+        g_executor_thread.join();
+      }
+      g_executor.reset();
+    }
+  }
+}
+
 class GazeboRosControlPrivate
 {
 public:
@@ -94,14 +134,8 @@ public:
   // String with the name of the node that contains the robot_description
   std::string robot_description_node_;
 
-  // Executor to spin the controller
+  // Executor to spin the controller (shared across instances)
   rclcpp::executors::MultiThreadedExecutor::SharedPtr executor_;
-
-  // Thread where the executor will sping
-  std::thread thread_executor_spin_;
-
-  // Flag to stop the executor thread when this plugin is exiting
-  bool stop_;
 
   // Controller manager
   std::shared_ptr<controller_manager::ControllerManager> controller_manager_;
@@ -123,11 +157,10 @@ GazeboRosControlPlugin::GazeboRosControlPlugin()
 
 GazeboRosControlPlugin::~GazeboRosControlPlugin()
 {
-  // Stop controller manager thread
-  impl_->stop_ = true;
+  // Remove this controller manager from the shared executor. If this is the
+  // last plugin instance, stop the executor thread as well.
   impl_->executor_->remove_node(impl_->controller_manager_);
-  impl_->executor_->cancel();
-  impl_->thread_executor_spin_.join();
+  drop_global_executor();
 
   // Disconnect from gazebo events
   impl_->update_connection_.reset();
@@ -147,12 +180,29 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
   // Initialize ROS node
   impl_->model_nh_ = gazebo_ros::Node::Get(sdf);
 
-  RCLCPP_INFO(
-    impl_->model_nh_->get_logger(), "Starting gazebo_ros2_control plugin in namespace: %s",
-    impl_->model_nh_->get_namespace());
+  // Preserve the full plugin SDF while parsing <ros> children
+  sdf::ElementPtr plugin_sdf = sdf;
+
+  // Workaround for gazebo_ros::Node::Get caching edge cases in multi-robot setups:
+  // Use explicit <ros><namespace> setting if present, otherwise use model_nh namespace.
+  std::string controller_namespace = impl_->model_nh_->get_namespace();
+  if (plugin_sdf->HasElement("ros")) {
+    sdf::ElementPtr ros_sdf = plugin_sdf->GetElement("ros");
+    if (ros_sdf->HasElement("namespace")) {
+      controller_namespace = ros_sdf->GetElement("namespace")->Get<std::string>();
+    }
+  }
 
   RCLCPP_INFO(
-    impl_->model_nh_->get_logger(), "Starting gazebo_ros2_control plugin in ros 2 node: %s",
+    impl_->model_nh_->get_logger(), "Starting gazebo_ros2_control plugin instance:");
+  RCLCPP_INFO(
+    impl_->model_nh_->get_logger(), "  requested namespace: %s",
+    controller_namespace.c_str());
+  RCLCPP_INFO(
+    impl_->model_nh_->get_logger(), "  actual node namespace: %s",
+    impl_->model_nh_->get_namespace());
+  RCLCPP_INFO(
+    impl_->model_nh_->get_logger(), "  plugin node name: %s",
     impl_->model_nh_->get_name());
 
   // Error message if the model couldn't be found
@@ -199,9 +249,9 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
     return;
   }
 
-  // There's currently no direct way to set parameters to the plugin's node
-  // So we have to parse the plugin file manually and set it to the node's context.
-  auto rcl_context = impl_->model_nh_->get_node_base_interface()->get_context()->get_rcl_context();
+  // Build per-plugin ROS arguments (parameters and remappings) from the SDF.
+  // Do NOT mutate the global rcl_context (shared across nodes in the same process).
+  // Instead, pass per-plugin arguments via NodeOptions to the controller manager.
   std::vector<std::string> arguments = {"--ros-args"};
 
   if (sdf->HasElement("parameters")) {
@@ -218,14 +268,8 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
       impl_->model_nh_->get_logger(), "No parameter file provided. Configuration might be wrong");
   }
 
-  // set the robot description parameter
-  // to propagate it among controller manager and controllers
-  std::string rb_arg = std::string("robot_description:=") + urdf_string;
-  arguments.push_back(RCL_PARAM_FLAG);
-  arguments.push_back(rb_arg);
-
-  if (sdf->HasElement("ros")) {
-    sdf = sdf->GetElement("ros");
+  if (plugin_sdf->HasElement("ros")) {
+    sdf::ElementPtr ros_sdf = plugin_sdf->GetElement("ros");
 
     // MULTI-ROBOT FIX: Do NOT add __ns to global rcl arguments.
     // The namespace is already correctly handled by gazebo_ros::Node::Get(sdf)
@@ -234,10 +278,8 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
     // gzserver process to inherit the first plugin's namespace.
 
     // Get list of remapping rules from SDF
-    if (sdf->HasElement("remapping")) {
-      sdf::ElementPtr argument_sdf = sdf->GetElement("remapping");
-
-      arguments.push_back(RCL_ROS_ARGS_FLAG);
+    if (ros_sdf->HasElement("remapping")) {
+      sdf::ElementPtr argument_sdf = ros_sdf->GetElement("remapping");
       while (argument_sdf) {
         std::string argument = argument_sdf->Get<std::string>();
         arguments.push_back(RCL_REMAP_FLAG);
@@ -247,25 +289,14 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
     }
   }
 
-  std::vector<const char *> argv;
-  for (const auto & arg : arguments) {
-    argv.push_back(reinterpret_cast<const char *>(arg.data()));
-  }
-  rcl_arguments_t rcl_args = rcl_get_zero_initialized_arguments();
-  rcl_ret_t rcl_ret = rcl_parse_arguments(
-    static_cast<int>(argv.size()),
-    argv.data(), rcl_get_default_allocator(), &rcl_args);
-  rcl_context->global_arguments = rcl_args;
-  if (rcl_ret != RCL_RET_OK) {
-    RCLCPP_ERROR(impl_->model_nh_->get_logger(), "parser error %s\n", rcl_get_error_string().str);
-    rcl_reset_error();
-    return;
-  }
-  if (rcl_arguments_get_param_files_count(&rcl_args) < 1) {
-    RCLCPP_ERROR(
-      impl_->model_nh_->get_logger(), "failed to parse input yaml file(s)");
-    return;
-  }
+  rclcpp::NodeOptions cm_options;
+  cm_options.arguments(arguments);
+  cm_options.use_global_arguments(false);
+  cm_options.parameter_overrides({
+    rclcpp::Parameter("robot_description", urdf_string),
+    rclcpp::Parameter("use_sim_time", rclcpp::ParameterValue(true)),
+    rclcpp::Parameter("update_rate", rclcpp::ParameterValue(int64_t(100)))
+  });
 
   // Get the Gazebo simulation period
   rclcpp::Duration gazebo_period(
@@ -346,7 +377,7 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
         node_ros2,
         impl_->parent_model_,
         control_hardware_info[i],
-        sdf))
+        plugin_sdf))
     {
       RCLCPP_FATAL(
         impl_->model_nh_->get_logger(), "Could not initialize robot simulation interface");
@@ -365,22 +396,30 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
     resource_manager_->set_component_state(control_hardware_info[i].name, state);
   }
 
-  impl_->executor_ = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+  // Use a globally shared executor (and spin thread) to avoid multiple
+  // `rclcpp` executors running in the same process, which can corrupt ROS
+  // state (signal handlers, global context) when multiple plugins are loaded.
+  ensure_global_executor();
+  impl_->executor_ = g_executor;
 
-  // Create the controller manager
+  // Create the controller manager with per-plugin NodeOptions so that parameter
+  // files and remappings are isolated and do not mutate the shared rcl_context.
   RCLCPP_INFO(impl_->model_nh_->get_logger(), "Loading controller_manager");
   impl_->controller_manager_.reset(
     new controller_manager::ControllerManager(
       std::move(resource_manager_),
       impl_->executor_,
       "controller_manager",
-      impl_->model_nh_->get_namespace()));
+      controller_namespace,
+      cm_options));
   impl_->executor_->add_node(impl_->controller_manager_);
 
   if (!impl_->controller_manager_->has_parameter("update_rate")) {
-    RCLCPP_ERROR_STREAM(
-      impl_->model_nh_->get_logger(), "controller manager doesn't have an update_rate parameter");
-    return;
+    RCLCPP_WARN_STREAM(
+      impl_->model_nh_->get_logger(),
+      "controller manager doesn't have an update_rate parameter: defaulting to 100 Hz");
+    impl_->controller_manager_->set_parameter(
+      rclcpp::Parameter("update_rate", rclcpp::ParameterValue(int64_t(100))));
   }
 
   auto cm_update_rate = impl_->controller_manager_->get_parameter("update_rate").as_int();
@@ -404,15 +443,6 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
   // Force setting of use_sime_time parameter
   impl_->controller_manager_->set_parameter(
     rclcpp::Parameter("use_sim_time", rclcpp::ParameterValue(true)));
-
-  impl_->stop_ = false;
-  auto spin = [this]()
-    {
-      while (rclcpp::ok() && !impl_->stop_) {
-        impl_->executor_->spin_once();
-      }
-    };
-  impl_->thread_executor_spin_ = std::thread(spin);
 
   // Listen to the update event. This event is broadcast every simulation iteration.
   impl_->update_connection_ =
@@ -481,11 +511,25 @@ std::string GazeboRosControlPrivate::getURDF(std::string param_name) const
 
     try {
       auto f = parameters_client->get_parameters({param_name});
-      f.wait();
+      auto status = f.wait_for(std::chrono::seconds(1));
+      if (status != std::future_status::ready) {
+        RCLCPP_ERROR(model_nh_->get_logger(), "Timed out waiting for parameter [%s]", param_name.c_str());
+        continue;
+      }
+
       std::vector<rclcpp::Parameter> values = f.get();
+      if (values.empty()) {
+        RCLCPP_ERROR(model_nh_->get_logger(), "Parameter [%s] not found", param_name.c_str());
+        continue;
+      }
+      if (values[0].get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+        RCLCPP_ERROR(model_nh_->get_logger(), "Parameter [%s] is not a string", param_name.c_str());
+        continue;
+      }
       urdf_string = values[0].as_string();
     } catch (const std::exception & e) {
-      RCLCPP_ERROR(model_nh_->get_logger(), "%s", e.what());
+      RCLCPP_ERROR(model_nh_->get_logger(), "Exception while reading param [%s]: %s", param_name.c_str(), e.what());
+      continue;
     }
 
     if (!urdf_string.empty()) {

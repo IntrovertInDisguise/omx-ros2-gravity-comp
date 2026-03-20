@@ -1,3 +1,20 @@
+(Entry added automatically by session tooling.)
+
+## Update (2026-03-19 — Dual GUI diagnostics)
+
+- **Action:** Investigated repeated dual-GUI `dual_gazebo_variable_stiffness.launch.py` failures in the devcontainer.
+- **Finding:** Launches terminate from an external `SIGINT/SIGTERM`; `controller_manager` logs show an orderly shutdown (no crash trace). See diagnostic: `logs/diagnostics/dual_gui_failure_20260319.md`.
+- **Recommendation:** Run the dual test headless (`gui:=false`) in this container or run GUI on a host with proper display forwarding; consider `nohup`/`tmux` to keep GUI processes persistent.
+- **Fix applied:** Added `tools/dual_gazebo_gui.sh` to automatically source workspace, use `xvfb-run` when `DISPLAY` is missing, and retry a few times on early failure.
+- **Verified now**: dual GUI mode has been run with `gui:=true` + `enable_live_plot:=true` + `enable_logger:=true` in this container; `gzserver` stayed live with the real variable-stiffness controller and console logs show `TRAJ_DBG` events.
+
+### Repro command
+
+```bash
+sudo apt-get update && sudo apt-get install -y xvfb  # one-time setup in container
+/workspaces/omx_ros2/tools/dual_gazebo_gui.sh
+```
+
 # Project Status
 
 This document captures the current state of the workspace, issues encountered, resolutions made, and next steps based on the conversation so far. It is periodically updated as new progress is made.
@@ -397,6 +414,19 @@ Status: ✅ `tools/plot_logs.py` created and syntax-validated; built-in tests pa
 - `sigma_min ≈ 0.065` for both robots (DLS off, no singularities).
 - All spawners finished cleanly; zero ROS errors.
 - Gazebo GUI renders correctly with `LIBGL_ALWAYS_SOFTWARE=1`.
+
+## Update (2026-03-19 — Quick GUI Gazebo run (single VS) — session)
+
+- **Action:** Launched `gazebo_variable_stiffness.launch.py` (single Gazebo variable stiffness) with `enable_logger:=true` and `enable_live_plot:=true` (GUI). Workspace overlay sourced from `ws/install`.
+- **Runtime:** `gzserver` and `gzclient` started; `live_plot_logs` subscribed to `/omx/variable_stiffness_controller/*`.
+- **Logger output (created by this run):**
+- **Logger output (created by this run):**
+  - Snapshot: `/tmp/variable_stiffness_logs/single_gazebo/variable_stiffness_snapshot_20260319_055240.csv` (moved to workspace logs below)
+  - Events: `/tmp/variable_stiffness_logs/single_gazebo/variable_stiffness_events_20260319_055240.csv` (moved to workspace logs below)
+  - Moved to workspace: `logs/variable_stiffness/single_gazebo/20260319_055240/` (snapshot + events)
+- **Notes:** Workspace `ws/install` was sourced to find packages; top-level `install/setup.bash` did not expose the built packages in this session. The workspace root `logs/` directory is not present; this run used `/tmp/variable_stiffness_logs/` as the logger output directory.
+
+(Entry added automatically by session tooling.)
 
 ### Important Note
 
