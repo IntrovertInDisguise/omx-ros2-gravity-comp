@@ -5,6 +5,7 @@ log/
 ws/build/
 ws/install/
 ws/log/
+ws/core.*
 
 # Python
 __pycache__/
