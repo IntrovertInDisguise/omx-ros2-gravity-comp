@@ -34,3 +34,11 @@ ws/core.*
 ws/project_status.md
 logs/
 ws/*.gzserver*
+# don't track runtime artifacts
+ws/core.*
+ws/core.gzserver.*
+ws/project_status.md
+log/
+logs/
+ws/build/
+ws/install/
