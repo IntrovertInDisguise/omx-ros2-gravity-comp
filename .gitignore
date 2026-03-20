@@ -28,3 +28,8 @@ ws/core.*
 ws/project_status.md
 logs/
 ws/*.gzserver*
+# runtime artifacts
+ws/core.*
+ws/project_status.md
+logs/
+ws/*.gzserver*
