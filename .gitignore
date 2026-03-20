@@ -24,3 +24,7 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+ws/core.*
+ws/project_status.md
+logs/
+ws/*.gzserver*
