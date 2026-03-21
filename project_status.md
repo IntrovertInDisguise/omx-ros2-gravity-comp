@@ -1266,3 +1266,8 @@ and end `[0.14, 0.02, 0.10]` both having x>0.
 - (git diff unavailable)
 
 ---
+### unstable_v2 changelog (2026-03-21)
+- Added robust dual-Gazebo 5-stage test gating and active controller readiness checks
+- Added fallback in check_controller_active for controller-manager service waits + LLM diagnostic dump
+- Added plugin path detection for workspace-installed gazebo_ros2_control library
+- Improved Gazebo stage2 `/gazebo/model_states` wait from 30 to 60 sec
