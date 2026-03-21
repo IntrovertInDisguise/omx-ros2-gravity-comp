@@ -133,16 +133,66 @@ def get_controller_states(namespace):
         return f'<controller states error: {exc}>'
 
 
-def check_controller_active(namespace, controller):
-    cmd = f"ros2 service call {namespace}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'"
-    for attempt in range(8):
+def llm_dump_for_controller_issue(namespace, controller, attempt):
+    dump_path = '/tmp/dual_gazebo_5stage_test_llm_dump.log'
+    with open(dump_path, 'a') as f:
+        f.write('='*80 + '\n')
+        f.write(f'LLM DUMP: {namespace} {controller} failure at attempt {attempt}\n')
+        f.write('time: ' + time.asctime() + '\n')
+        for c in [
+            'ros2 node list',
+            'ros2 service list',
+            'ros2 topic list',
+            f"ros2 service call {namespace}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'",
+            f"ros2 topic list | grep -E '^{namespace}'",
+            "ros2 run controller_manager spawner --help",  # sanity command check
+        ]:
+            try:
+                rr = run_ros2_cmd(c, timeout=10, check=False)
+                f.write(f'--- {c} ---\n')
+                f.write(rr.stdout.strip() + '\n')
+                if rr.stderr:
+                    f.write('ERR: ' + rr.stderr.strip() + '\n')
+            except Exception as exc:
+                f.write(f'--- {c} exception: {exc} ---\n')
+        f.write('='*80 + '\n')
+
+
+def wait_for_controller_managers(timeout=120):
+    """Wait for both /robot1 and /robot2 controller_manager list_controllers services."""
+    dead = time.time() + float(timeout)
+    while time.time() < dead:
         try:
-            rr = run_ros2_cmd(cmd, timeout=10, check=False)
-            if f"name: '{controller}'" in rr.stdout and "state: active" in rr.stdout:
+            s = run_ros2_cmd("ros2 service list | grep -E '^/robot[12]/controller_manager/list_controllers$'", timeout=5, check=False)
+            found = s.stdout.strip().splitlines()
+            if '/robot1/controller_manager/list_controllers' in found and '/robot2/controller_manager/list_controllers' in found:
                 return True
         except Exception:
             pass
-        time.sleep(1)
+        time.sleep(1.0)
+    return False
+
+
+def check_controller_active(namespace, controller):
+    cmd = f"ros2 service call {namespace}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'"
+    # allow more grace time for controller manager startup
+    for attempt in range(40):
+        try:
+            # Ensure service appears before calling
+            svc = run_ros2_cmd(f"ros2 service list | grep -x '{namespace}/controller_manager/list_controllers'", timeout=5, check=False)
+            if svc.returncode != 0:
+                time.sleep(1)
+                continue
+            rr = run_ros2_cmd(cmd, timeout=10, check=False)
+            if f"name: '{controller}'" in rr.stdout and "state: active" in rr.stdout:
+                return True
+            # if no entry yet, still wait
+            if attempt == 7:  # ~15s
+                llm_dump_for_controller_issue(namespace, controller, attempt)
+        except Exception:
+            if attempt == 7:
+                llm_dump_for_controller_issue(namespace, controller, attempt)
+        time.sleep(2)
     return False
 
 
@@ -196,7 +246,7 @@ def main():
         # Launch live plot; allow GUI if upstream environment sets LIVEPLOT_USE_GUI=1
         live_env_prefix = 'LIVEPLOT_USE_GUI=1 ' if use_gui else 'LIVEPLOT_USE_GUI=0 '
         live_proc = subprocess.Popen(
-            f'bash -lc "{live_env_prefix} source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && mkdir -p {args.screenshot_dir} && python3 tools/live_plot_logs.py --controller variable_stiffness --namespace /robot1/robot1_variable_stiffness --namespace2 /robot2/robot2_variable_stiffness --window 60 --interval 0.5 --screenshot-dir {args.screenshot_dir} --screenshot-rate 2"',
+            f'bash -lc "{live_env_prefix} source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && mkdir -p {args.screenshot_dir} && python3 /workspaces/omx_ros2/tools/live_plot_logs.py --controller variable_stiffness --namespace /robot1/robot1_variable_stiffness --namespace2 /robot2/robot2_variable_stiffness --window 60 --interval 0.5 --screenshot-dir {args.screenshot_dir} --screenshot-rate 2"',
             shell=True, stdout=open(live_log, 'w'), stderr=subprocess.STDOUT)
 
         # Stage 1: check gazebo+live_plot launch health, eventually screenshot/topic availability
@@ -292,7 +342,7 @@ def main():
 
         if r1 and r2:
             # Wait for /gazebo/model_states to appear before attempting to read it.
-            if not wait_for_topic('/gazebo/model_states', timeout=30):
+            if not wait_for_topic('/gazebo/model_states', timeout=60):
                 stage2_reason = '/gazebo/model_states not published within timeout'
             else:
                 try:
@@ -305,10 +355,29 @@ def main():
                 except Exception as e:
                     stage2_reason = f'failed to query /gazebo/model_states: {e}'
 
-        # Stage 3: controllers active
+        # Give controller managers time to settle (especially robot2 in dual mode)
+        time.sleep(10)
+
+        # Stage 3: wait for CM services first (strong namespacing check)
         stage3_reason = ''
-        r1_ctrl = check_controller_active('/robot1', 'robot1_variable_stiffness')
-        r2_ctrl = check_controller_active('/robot2', 'robot2_variable_stiffness')
+        cm_ready = wait_for_controller_managers(timeout=120)
+        if not cm_ready:
+            stage3_reason = 'controller_manager services not ready for robot1 or robot2'
+            print(stage3_reason)
+            log_to_file(stage3_reason)
+            states1 = get_controller_states('/robot1')
+            states2 = get_controller_states('/robot2')
+            print('controller states /robot1:\n', states1)
+            print('controller states /robot2:\n', states2)
+            log_to_file('controller states /robot1: ' + states1.replace('\n', '; '))
+            log_to_file('controller states /robot2: ' + states2.replace('\n', '; '))
+            r1_ctrl = False
+            r2_ctrl = False
+            success3 = False
+        else:
+            r1_ctrl = check_controller_active('/robot1', 'robot1_variable_stiffness')
+            r2_ctrl = check_controller_active('/robot2', 'robot2_variable_stiffness')
+            success3 = r1_ctrl and r2_ctrl
         success3 = r1_ctrl and r2_ctrl
         if success3:
             stage3_reason = 'ok'

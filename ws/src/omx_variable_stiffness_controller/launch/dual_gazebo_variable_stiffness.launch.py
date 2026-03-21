@@ -82,8 +82,10 @@ def generate_launch_description():
     gui = LaunchConfiguration('gui')
 
     # ── Plugin detection ─────────────────────────────────────────────────
-    _PLUGIN_AVAILABLE = os.path.exists(
-        '/opt/ros/humble/lib/libgazebo_ros2_control.so'
+    _PLUGIN_AVAILABLE = (
+        os.path.exists('/opt/ros/humble/lib/libgazebo_ros2_control.so') or
+        os.path.exists('/workspaces/omx_ros2/ws/build/gazebo_ros2_control/libgazebo_ros2_control.so') or
+        os.path.exists('/workspaces/omx_ros2/ws/install/gazebo_ros2_control/lib/libgazebo_ros2_control.so')
     )
 
     # effective_gazebo: True ONLY when the user wants Gazebo AND the plugin
@@ -317,14 +319,37 @@ def generate_launch_description():
         OnProcessExit(target_action=load_jsb_r1, on_exit=[load_vs_r1]),
         condition=IfCondition(effective_gazebo),
     )
-    #   vs_r1 exits → NOW spawn robot2 (robot1 fully up)
-    # Add a short delay after robot1's variable-stiffness spawner exits
-    # before spawning robot2 to ensure the first plugin's initialization
-    # fully completes and avoids cross-namespace contamination.
+    #   vs_r1 exits → wait until robot1 controller_manager is ready
+    # before spawning robot2. This is stronger than fixed time delay.
+    wait_for_robot1_ready = ExecuteProcess(
+        cmd=['bash', '-lc',
+             'source /opt/ros/humble/setup.bash && '
+             'source /workspaces/omx_ros2/ws/install/setup.bash && '
+             'echo "waiting for /robot1/controller_manager/list_controllers" && '
+             'until ros2 service list | grep -x "/robot1/controller_manager/list_controllers"; do sleep 0.5; done && '
+             'echo "robot1 list_controllers available" && '
+             'for i in $(seq 1 60); do '\
+                 'resp=$(ros2 service call /robot1/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers "{}" 2>/dev/null) && '\
+                 'echo "$resp" | grep -q "name: \'robot1_variable_stiffness\'" && '\
+                 'echo "$resp" | grep -q "state: active" && exit 0 || true; '\
+               'sleep 1; done && '
+             'echo "robot1_variable_stiffness did not become active" && exit 1'
+        ],
+        output='screen',
+    )
+
     spawn_r2_after_r1_complete = RegisterEventHandler(
         OnProcessExit(
             target_action=load_vs_r1,
-            on_exit=[TimerAction(period=8.0, actions=[spawn_robot2])]
+            on_exit=[wait_for_robot1_ready],
+        ),
+        condition=IfCondition(effective_gazebo),
+    )
+
+    spawn_r2_after_wait = RegisterEventHandler(
+        OnProcessExit(
+            target_action=wait_for_robot1_ready,
+            on_exit=[spawn_robot2]
         ),
         condition=IfCondition(effective_gazebo),
     )
