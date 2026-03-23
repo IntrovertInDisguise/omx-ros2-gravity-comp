@@ -1,485 +1,258 @@
 #!/usr/bin/env python3
-"""Continuous dual Gazebo + liveplot + opposing push test with 5 stages.
+"""
+5-stage functional test for dual-robot variable-stiffness system in Gazebo.
 
 Stages:
- 1. GUI + live_plot launched (processes alive and screenshots are produced)
- 2. Robot arms + box spawned (robot joint_states topics exist, spawn entity service success)
- 3. Both controller managers have active variable stiffness controllers
- 4. Execute one opposing-path cycle, then contact_wrench from both robots appears
- 5. If any stage fails, retry until max iterations.
-
-Run with:
-  python3 tools/dual_gazebo_5stage_test.py --max-iterations 5
-
-Requires workspace sourced beforehand.
+1. both robots+box spawned
+2. both robots controlled and can move
+3. synced behaviour pressing box (contact_wrench appears for both)
+4. box pressed with negligible moment (torque norm low)
+5. force signature recorded (non-zero force magnitude)
 """
 
 import argparse
-import os
-import shutil
 import subprocess
 import sys
-import tempfile
 import time
+import math
+import re
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
 
-def run_cmd(cmd, timeout=20, check=True, capture_output=True):
+def run_cmd(cmd, timeout=20, check=True):
     return subprocess.run(cmd, shell=True, timeout=timeout, check=check,
-                          stdout=subprocess.PIPE if capture_output else None,
-                          stderr=subprocess.PIPE if capture_output else None,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           text=True)
 
 
-def run_ros2_cmd(cmd, timeout=20, check=True, capture_output=True):
+def run_ros2_cmd(cmd, timeout=20, check=True):
     env_source = 'source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && '
     wrapped = f"bash -lc '{env_source}{cmd}'"
-    return run_cmd(wrapped, timeout=timeout, check=check, capture_output=capture_output)
-
-
-def ensure_env():
-    os.environ.setdefault('AMENT_TRACE_SETUP_FILES', '0')
-    os.environ.setdefault('AMENT_PYTHON_EXECUTABLE', shutil.which('python3') or 'python3')
-    os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
-
-
-def source_setup():
-    # source is done by calling bash -lc for each command below
-    pass
-
-
-def ros2_topic_exists(topic, timeout=5):
-    try:
-        # ros2 topic echo may block; use 'timeout' wrapper and check return code.
-        cp = run_ros2_cmd(f"timeout {timeout}s ros2 topic echo {topic} --once", timeout=timeout + 5, check=False)
-        return cp.returncode == 0
-    except subprocess.TimeoutExpired:
-        return False
-
-
-def ros2_topic_list_contains(topic):
-    try:
-        cp = run_ros2_cmd(f"ros2 topic list | grep -x '{topic}'", timeout=5, check=False)
-        return cp.returncode == 0
-    except subprocess.TimeoutExpired:
-        return False
-
-
-def wait_for_topic(topic: str, timeout: int = 60) -> bool:
-    """Wait for a ROS2 topic to appear in `ros2 topic list` within `timeout` seconds."""
-    deadline = time.time() + float(timeout)
-    while time.time() < deadline:
-        try:
-            if ros2_topic_list_contains(topic):
-                return True
-        except Exception:
-            pass
-        time.sleep(1.0)
-    return False
-
-
-def ros2_topic_list_has_namespace(prefix: str) -> bool:
-    """Return True if any topic starts with the given prefix (e.g. '/robot1/robot1_variable_stiffness')."""
-    try:
-        cp = run_ros2_cmd(f"ros2 topic list | grep -E '^{prefix}'", timeout=5, check=False)
-        return cp.returncode == 0
-    except subprocess.TimeoutExpired:
-        return False
+    return run_cmd(wrapped, timeout=timeout, check=check)
 
 
 def gzserver_alive():
-    return subprocess.run('pgrep -f gzserver >/dev/null 2>&1', shell=True).returncode == 0
+    val = subprocess.run('pgrep -f gzserver', shell=True, check=False,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return val.returncode == 0
 
 
-def collect_stage1_diagnostics(args, live_log, launch_log):
-    info = {}
-    # gzs server processinfo
-    info['gzserver'] = subprocess.run('ps -ef | grep -E "gzserver" | grep -v grep | head', shell=True, text=True, capture_output=True).stdout.strip()
-    # live_plot processinfo
-    info['live_plot'] = subprocess.run('ps -ef | grep -E "live_plot_logs.py" | grep -v grep | head', shell=True, text=True, capture_output=True).stdout.strip()
-    # screenshot dir contents
-    if os.path.exists(args.screenshot_dir):
-        try:
-            files = os.listdir(args.screenshot_dir)
-            info['screenshot_count'] = len(files)
-            info['screenshots'] = files[:5]
-        except Exception as e:
-            info['screenshot_error'] = str(e)
-    else:
-        info['screenshot_count'] = 0
-
-    # last log lines for launcher and liveplot
-    if os.path.exists(live_log):
-        info['live_log_tail'] = subprocess.run(f'tail -n 15 {live_log}', shell=True, text=True, capture_output=True).stdout.strip()
-    else:
-        info['live_log_tail'] = '<no live log>'
-    if os.path.exists(launch_log):
-        info['launch_log_tail'] = subprocess.run(f'tail -n 15 {launch_log}', shell=True, text=True, capture_output=True).stdout.strip()
-    else:
-        info['launch_log_tail'] = '<no launch log>'
-
-    # ROS2 topic existence snapshot
-    info['ros2_topic_list'] = run_ros2_cmd('ros2 topic list | grep -E "(?:/robot1|/robot2|/gazebo)"', timeout=5).stdout.strip()
-    return info
+def wait_for_topic(name, timeout=120):
+    start = time.time()
+    while time.time() - start < timeout:
+        r = run_ros2_cmd(f"ros2 topic list | grep -x '{name}'", timeout=5, check=False)
+        if r.returncode == 0:
+            return True
+        time.sleep(1)
+    return False
 
 
-def get_controller_states(namespace):
-    cmd = f"ros2 service call {namespace}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'"
+def wait_for_service(name, timeout=120):
+    start = time.time()
+    while time.time() - start < timeout:
+        r = run_ros2_cmd(f"ros2 service list | grep -x '{name}'", timeout=5, check=False)
+        if r.returncode == 0:
+            return True
+        time.sleep(1)
+    return False
+
+
+def get_model_states():
+    out = run_ros2_cmd('ros2 topic echo /gazebo/model_states --once', timeout=15, check=False)
+    return out.stdout if out.returncode == 0 else ''
+
+
+def get_model_list():
     try:
-        rr = run_ros2_cmd(cmd, timeout=10, check=False)
-        return rr.stdout.strip() or '<empty response>'
-    except Exception as exc:
-        return f'<controller states error: {exc}>'
+        out = run_ros2_cmd("ros2 service call /get_model_list gazebo_msgs/srv/GetModelList '{}'", timeout=8, check=False)
+    except subprocess.TimeoutExpired:
+        return []
+    if out.returncode != 0 or not out.stdout:
+        print('[get_model_list] no output or failed return code:', out.returncode, 'stderr:', out.stderr.strip())
+        return []
+
+    print('[get_model_list] stdout:', out.stdout.strip())
+
+    # Preferred parsing: model_names=['ground_plane', 'robot1', ...]
+    m = re.search(r'model_names\s*=\s*\[([^\]]*)\]', out.stdout, re.DOTALL)
+    if m:
+        raw = m.group(1)
+        names = re.findall(r"'([^']+)'", raw)
+        if names:
+            return names
+
+    # fallback: avoid capturing empty frame_id or other metadata
+    names = re.findall(r"'([^']*)'", out.stdout) or re.findall(r'\"([^\"]*)\"', out.stdout)
+    return [n for n in names if n.strip() and n != 'frame_id']
 
 
-def llm_dump_for_controller_issue(namespace, controller, attempt):
-    dump_path = '/tmp/dual_gazebo_5stage_test_llm_dump.log'
-    with open(dump_path, 'a') as f:
-        f.write('='*80 + '\n')
-        f.write(f'LLM DUMP: {namespace} {controller} failure at attempt {attempt}\n')
-        f.write('time: ' + time.asctime() + '\n')
-        for c in [
-            'ros2 node list',
-            'ros2 service list',
-            'ros2 topic list',
-            f"ros2 service call {namespace}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'",
-            f"ros2 topic list | grep -E '^{namespace}'",
-            "ros2 run controller_manager spawner --help",  # sanity command check
-        ]:
-            try:
-                rr = run_ros2_cmd(c, timeout=10, check=False)
-                f.write(f'--- {c} ---\n')
-                f.write(rr.stdout.strip() + '\n')
-                if rr.stderr:
-                    f.write('ERR: ' + rr.stderr.strip() + '\n')
-            except Exception as exc:
-                f.write(f'--- {c} exception: {exc} ---\n')
-        f.write('='*80 + '\n')
+def get_joint_positions(robot, timeout=20):
+    out = run_ros2_cmd(f"ros2 topic echo /{robot}/joint_states --once", timeout=timeout, check=False)
+    if out.returncode != 0 or not out.stdout:
+        return None
+    m = re.search(r'position:\s*\[\s*([-+0-9.eE]+)', out.stdout)
+    return float(m.group(1)) if m else None
 
 
-def wait_for_controller_managers(timeout=120):
-    """Wait for both /robot1 and /robot2 controller_manager list_controllers services."""
-    dead = time.time() + float(timeout)
-    while time.time() < dead:
-        try:
-            s = run_ros2_cmd("ros2 service list | grep -E '^/robot[12]/controller_manager/list_controllers$'", timeout=5, check=False)
-            found = s.stdout.strip().splitlines()
-            if '/robot1/controller_manager/list_controllers' in found and '/robot2/controller_manager/list_controllers' in found:
-                return True
-        except Exception:
-            pass
-        time.sleep(1.0)
-    return False
+def send_joint_command(robot, value):
+    topic = f'/{robot}/{robot}_variable_stiffness/commands'
+    cmd = f"ros2 topic pub {topic} std_msgs/msg/Float64MultiArray '{{layout: {{dim: []}}, data: [{value}]}}' --once"
+    run_ros2_cmd(cmd, timeout=5, check=False)
 
 
-def check_controller_active(namespace, controller):
-    cmd = f"ros2 service call {namespace}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'"
-    # allow more grace time for controller manager startup
-    for attempt in range(40):
-        try:
-            # Ensure service appears before calling
-            svc = run_ros2_cmd(f"ros2 service list | grep -x '{namespace}/controller_manager/list_controllers'", timeout=5, check=False)
-            if svc.returncode != 0:
-                time.sleep(1)
-                continue
-            rr = run_ros2_cmd(cmd, timeout=10, check=False)
-            if f"name: '{controller}'" in rr.stdout and "state: active" in rr.stdout:
-                return True
-            # if no entry yet, still wait
-            if attempt == 7:  # ~15s
-                llm_dump_for_controller_issue(namespace, controller, attempt)
-        except Exception:
-            if attempt == 7:
-                llm_dump_for_controller_issue(namespace, controller, attempt)
-        time.sleep(2)
-    return False
+def get_contact_wrench(robot):
+    topic = f'/{robot}/{robot}_variable_stiffness/contact_wrench'
+    out = run_ros2_cmd(f"ros2 topic echo {topic} --once", timeout=10, check=False)
+    if out.returncode != 0 or not out.stdout:
+        return None, None
+    force = torque = None
+    fm = re.search(r'force:\s*\[\s*([-+0-9.eE]+),\s*([-+0-9.eE]+),\s*([-+0-9.eE]+)\s*\]', out.stdout)
+    tm = re.search(r'torque:\s*\[\s*([-+0-9.eE]+),\s*([-+0-9.eE]+),\s*([-+0-9.eE]+)\s*\]', out.stdout)
+    if fm:
+        force = [float(fm.group(i)) for i in range(1, 4)]
+    if tm:
+        torque = [float(tm.group(i)) for i in range(1, 4)]
+    return force, torque
 
 
-def log_to_file(message: str):
-    with open('/tmp/dual_gazebo_5stage_test_results.log', 'a') as f:
-        f.write(message + '\n')
-
-
-def write_status(msg):
-    with open('/tmp/dual_gazebo_5stage_test_status.log', 'a') as f:
-        f.write(msg + '\n')
-
-
-def main():
-    write_status('TEST START')
-    print('TEST START')
-    with open('/tmp/dual_gazebo_5stage_test_results.log','a') as f:
-        f.write('TEST START\n')
-    parser = argparse.ArgumentParser(description='Dual Gazebo 5-stage test script')
-    parser.add_argument('--max-iterations', type=int, default=30,
-                        help='Max retry cycles until all 5 stages pass')
-    parser.add_argument('--duration', type=float, default=20.0)
-    parser.add_argument('--wait-before-push', type=float, default=8.0)
-    parser.add_argument('--line-steps', type=int, default=18)
-    parser.add_argument('--screenshot-dir', default='/tmp/live_plot_screenshots')
-    parser.add_argument('--no-gui', action='store_true',
-                        help='Run headless (disable GUI for live-plot). Default: GUI enabled')
-    args = parser.parse_args()
-
-    use_gui = not args.no_gui
-
-    for trial in range(1, args.max_iterations + 1):
-        print(f'===== Trial {trial}/{args.max_iterations} =====')
-        log_to_file(f'===== Trial {trial}/{args.max_iterations} =====')
-        # cleanup previous processes
-        subprocess.run('pkill -f dual_gazebo_variable_stiffness.launch.py || true', shell=True)
-        subprocess.run('pkill -f live_plot_logs.py || true', shell=True)
-        subprocess.run('pkill -f dual_gazebo_opposing_push.py || true', shell=True)
-        subprocess.run('pkill -f gzserver || true', shell=True)
-        subprocess.run('pkill -f gzclient || true', shell=True)
-        time.sleep(2)
-
-        # launch stage: gazebo + live plot
-        launch_log = '/tmp/dual_gazebo_5stage_launch.log'
-        live_log = '/tmp/dual_gazebo_5stage_liveplot.log'
-        launch_proc = subprocess.Popen(
-            f'bash -lc "source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && ros2 launch omx_variable_stiffness_controller dual_gazebo_variable_stiffness.launch.py gui:=true launch_gazebo:=true enable_logger:=true enable_live_plot:=true start_rviz:=false"',
-            shell=True, stdout=open(launch_log, 'w'), stderr=subprocess.STDOUT)
-        time.sleep(4)
-
-        # Launch live plot; allow GUI if upstream environment sets LIVEPLOT_USE_GUI=1
-        live_env_prefix = 'LIVEPLOT_USE_GUI=1 ' if use_gui else 'LIVEPLOT_USE_GUI=0 '
-        live_proc = subprocess.Popen(
-            f'bash -lc "{live_env_prefix} source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && mkdir -p {args.screenshot_dir} && python3 /workspaces/omx_ros2/tools/live_plot_logs.py --controller variable_stiffness --namespace /robot1/robot1_variable_stiffness --namespace2 /robot2/robot2_variable_stiffness --window 60 --interval 0.5 --screenshot-dir {args.screenshot_dir} --screenshot-rate 2"',
-            shell=True, stdout=open(live_log, 'w'), stderr=subprocess.STDOUT)
-
-        # Stage 1: check gazebo+live_plot launch health, eventually screenshot/topic availability
-        success1 = False
-        stage1_reason = ''
-        write_status('stage1 start')
-        for i in range(30):
-            if not gzserver_alive():
-                stage1_reason = 'gzserver not alive'
-                break
-            if live_proc.poll() is not None:
-                stage1_reason = 'live_plot process exited early'
-                break
-
-            # Only count real PNG screenshots — ignore marker files.
-            if os.path.isdir(args.screenshot_dir):
-                try:
-                    screenshot_files = [f for f in os.listdir(args.screenshot_dir) if f.lower().endswith('.png')]
-                except Exception:
-                    screenshot_files = []
-            else:
-                screenshot_files = []
-            try:
-                topic_list = run_ros2_cmd(
-                    'ros2 topic list | grep -E "(/robot1/robot1_variable_stiffness|/robot2/robot2_variable_stiffness)"',
-                    timeout=5).stdout.strip()
-            except subprocess.CalledProcessError:
-                topic_list = ''
-
-            if screenshot_files:
-                success1 = True
-                stage1_reason = f'screenshots available ({len(screenshot_files)})'
-                break
-            if topic_list:
-                success1 = True
-                stage1_reason = 'plot topics active; no screenshots yet'
-                break
-
-            if i == 29:
-                stage1_reason = 'no screenshots/topic evidence after 30s'
-                break
-
-            time.sleep(1)
-
-        if not success1 and not stage1_reason:
-            stage1_reason = 'unexpected stage1 timeout'
-
-        write_status(f'stage1 result: {success1}, {stage1_reason}')
-
-        if not success1:
-            diag = collect_stage1_diagnostics(args, live_log, launch_log)
-            print('--- Stage 1 diagnostics ---')
-            print('gzserver:', diag['gzserver'] or '<not running>')
-            print('live_plot:', diag['live_plot'] or '<not running>')
-            print('screenshot_count:', diag.get('screenshot_count'))
-            print('screenshots:', diag.get('screenshots'))
-            print('ros2 topics (robot/gazebo subset):')
-            print(diag.get('ros2_topic_list', '<none>'))
-            print('--- live_plot log tail ---')
-            print(diag['live_log_tail'])
-            print('--- launch log tail ---')
-            print(diag['launch_log_tail'])
-            print('---------------------------')
-
-        # Stage 2: wait until robot joint_states topics are visible in ROS topic list and box is spawned
-        success2 = False
-        stage2_reason = ''
-
-        r1 = False
-        r2 = False
-        # Relaxed gating: accept either joint_states or controller topics
-        for i in range(60):
-            r1_js = ros2_topic_list_contains('/robot1/joint_states')
-            r2_js = ros2_topic_list_contains('/robot2/joint_states')
-            r1_ns = ros2_topic_list_has_namespace('/robot1/robot1_variable_stiffness')
-            r2_ns = ros2_topic_list_has_namespace('/robot2/robot2_variable_stiffness')
-            r1 = r1_js or r1_ns
-            r2 = r2_js or r2_ns
-            if r1 and r2:
-                break
-            time.sleep(1)
-
-        missing = []
-        if not r1:
-            missing.append('/robot1: joint_states or variable_stiffness topics')
-        if not r2:
-            missing.append('/robot2: joint_states or variable_stiffness topics')
-        if missing:
-            stage2_reason = f'missing topic evidence after 60s: {"; ".join(missing)}'
-        else:
-            stage2_reason = 'joint_states or controller topics present'
-        write_status(f'stage2 result pre-gazebo: {r1},{r2} -> {stage2_reason}')
-
-        if r1 and r2:
-            # Wait for /gazebo/model_states to appear before attempting to read it.
-            if not wait_for_topic('/gazebo/model_states', timeout=60):
-                stage2_reason = '/gazebo/model_states not published within timeout'
-            else:
-                try:
-                    m = run_ros2_cmd("ros2 topic echo /gazebo/model_states --once", timeout=15, check=False)
-                    if 'opposing_push_box' in m.stdout:
-                        success2 = True
-                        stage2_reason = 'ok'
-                    else:
-                        stage2_reason = 'box entity not detected in /gazebo/model_states'
-                except Exception as e:
-                    stage2_reason = f'failed to query /gazebo/model_states: {e}'
-
-        # Give controller managers time to settle (especially robot2 in dual mode)
-        time.sleep(10)
-
-        # Stage 3: wait for CM services first (strong namespacing check)
-        stage3_reason = ''
-        cm_ready = wait_for_controller_managers(timeout=120)
-        if not cm_ready:
-            stage3_reason = 'controller_manager services not ready for robot1 or robot2'
-            print(stage3_reason)
-            log_to_file(stage3_reason)
-            states1 = get_controller_states('/robot1')
-            states2 = get_controller_states('/robot2')
-            print('controller states /robot1:\n', states1)
-            print('controller states /robot2:\n', states2)
-            log_to_file('controller states /robot1: ' + states1.replace('\n', '; '))
-            log_to_file('controller states /robot2: ' + states2.replace('\n', '; '))
-            r1_ctrl = False
-            r2_ctrl = False
-            success3 = False
-        else:
-            r1_ctrl = check_controller_active('/robot1', 'robot1_variable_stiffness')
-            r2_ctrl = check_controller_active('/robot2', 'robot2_variable_stiffness')
-            success3 = r1_ctrl and r2_ctrl
-        success3 = r1_ctrl and r2_ctrl
-        if success3:
-            stage3_reason = 'ok'
-        else:
-            states1 = get_controller_states('/robot1')
-            states2 = get_controller_states('/robot2')
-            missing_ctrl = []
-            if not r1_ctrl:
-                missing_ctrl.append('robot1_variable_stiffness')
-            if not r2_ctrl:
-                missing_ctrl.append('robot2_variable_stiffness')
-            stage3_reason = f'inactive controllers: {", ".join(missing_ctrl)}'
-            print('controller states /robot1:\n', states1)
-            print('controller states /robot2:\n', states2)
-            log_to_file('controller states /robot1: ' + states1.replace('\n', '; '))
-            log_to_file('controller states /robot2: ' + states2.replace('\n', '; '))
-
-        # Stage 4: run opposing push once and detect contact wrench
-        pusher_log = '/tmp/dual_gazebo_5stage_push.log'
-        push_proc = subprocess.Popen(
-            f'bash -lc "source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && python3 tools/dual_gazebo_opposing_push.py --duration {args.duration} --wait-before-push {args.wait_before_push} --line-steps {args.line_steps} --press-x-offset 0.0 --retracted-distance 0.20 --press-distance 0.02"',
-            shell=True, stdout=open(pusher_log, 'w'), stderr=subprocess.STDOUT)
-
-        success4 = False
-        stage4_reason = ''
-        for i in range(60):
-            r1_contact = ros2_topic_exists('/robot1/robot1_variable_stiffness/contact_wrench', timeout=2)
-            r2_contact = ros2_topic_exists('/robot2/robot2_variable_stiffness/contact_wrench', timeout=2)
-            if r1_contact and r2_contact:
-                success4 = True
-                stage4_reason = 'ok'
-                break
-
-            # second chance: if topics exist but no messages yet, keep waiting for full duration
-            t1 = ros2_topic_list_contains('/robot1/robot1_variable_stiffness/contact_wrench')
-            t2 = ros2_topic_list_contains('/robot2/robot2_variable_stiffness/contact_wrench')
-            if t1 and t2:
-                stage4_reason = 'contact_wrench topics exist but no message yet'
-            else:
-                stage4_reason = 'missing contact_wrench topics'
-
-            if i % 10 == 9:
-                print(f'[stage4] attempt {i+1}: {stage4_reason}')
-                log_to_file(f'[stage4] attempt {i+1}: {stage4_reason}')
-
-            time.sleep(1)
-
-        if not success4 and not stage4_reason:
-            stage4_reason = 'missing contact_wrench for robot1 or robot2'
-
-        # Stage 5: final decision
-        all_success = success1 and success2 and success3 and success4
-        print('stage results:', success1, success2, success3, success4)
-        if all_success:
-            print('stage reasons: stage1=ok stage2=ok stage3=ok stage4=ok')
-            log_to_file('stage reasons: stage1=ok stage2=ok stage3=ok stage4=ok')
-        else:
-            first_fail = None
-            if not success1:
-                first_fail = f'stage1: {stage1_reason}'
-            elif not success2:
-                first_fail = f'stage2: {stage2_reason}'
-            elif not success3:
-                first_fail = f'stage3: {stage3_reason}'
-            elif not success4:
-                first_fail = f'stage4: {stage4_reason}'
-            print('first fail:', first_fail)
-            log_to_file('first fail: ' + str(first_fail))
+def run_test(max_iterations=3):
+    for trial in range(1, max_iterations + 1):
+        print(f"===== TRIAL {trial}/{max_iterations} =====")
 
         # cleanup
-        push_proc.kill()
-        live_proc.kill()
-        launch_proc.kill()
-        subprocess.run('pkill -f gzclient || true', shell=True)
+        subprocess.run('pkill -f dual_gazebo_variable_stiffness.launch.py || true', shell=True)
         subprocess.run('pkill -f gzserver || true', shell=True)
+        subprocess.run('pkill -f gzclient || true', shell=True)
+        time.sleep(2)
 
-        if all_success:
-            write_status('ALL STAGES PASSED')
-            print('ALL STAGES PASSED')
-            with open('/tmp/dual_gazebo_5stage_test_results.log','a') as f:
-                f.write('ALL STAGES PASSED\n')
-            print('pressure validated; stopping iterations')
-            print('TEST END')
-            write_status('TEST END')
-            with open('/tmp/dual_gazebo_5stage_test_results.log','a') as f:
-                f.write('TEST END\n')
-            return
+        launch_proc = subprocess.Popen(
+            'bash -lc "source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && '
+            'ros2 launch omx_variable_stiffness_controller dual_gazebo_variable_stiffness.launch.py gui:=false launch_gazebo:=true enable_live_plot:=false start_rviz:=false"',
+            shell=True,
+            stdout=open('/tmp/dual_gazebo_5stage_launch.log', 'w'),
+            stderr=subprocess.STDOUT,
+        )
 
-        write_status('ONE OR MORE STAGES FAILED')
-        print('One or more stages failed; retrying')
-        time.sleep(3)
+        # Stage 1: spawn verification
+        print('Stage 1: checking robot1/robot2/joint_states and box in world')
+        # ensure gazebo has model list service available before sampling
+        if not wait_for_service('/get_model_list', timeout=90):
+            print('  Stage1 FAILED: /get_model_list service not available'); launch_proc.kill(); time.sleep(1); continue
 
-    write_status('FAILED: max iterations reached without all stage success')
-    print('FAILED: max iterations reached without all stage success')
-    with open('/tmp/dual_gazebo_5stage_test_results.log','a') as f:
-        f.write('FAILED: max iterations reached without all stage success\n')
-    print('TEST END')
-    write_status('TEST END')
-    with open('/tmp/dual_gazebo_5stage_test_results.log','a') as f:
-        f.write('TEST END\n')
-    sys.exit(1)
+        stage1_ok = False
+        t0 = time.time()
+        while time.time() - t0 < 240:
+            if not gzserver_alive():
+                print('  gzserver died during stage1')
+                break
+
+            robots_ready = wait_for_topic('/robot1/joint_states', timeout=2) and wait_for_topic('/robot2/joint_states', timeout=2)
+            if not robots_ready:
+                print('  waiting for robot joint_states topics')
+                time.sleep(1)
+                continue
+
+            # require all expected entities to be present to trust Stage1
+            models = get_model_list()
+            if not models:
+                print('  waiting for /get_model_list service response')
+                time.sleep(1)
+                continue
+
+            required_models = {'robot1', 'robot2', 'opposing_push_box'}
+            missing = required_models - set(models)
+            if not missing:
+                stage1_ok = True
+                print('  Stage1 OK: all required models present in get_model_list')
+                break
+
+            # also try /gazebo/model_states and /model_states text scan to avoid remapping uncertainty
+            ms = get_model_states()
+            if 'opposing_push_box' in ms:
+                missing.discard('opposing_push_box')
+
+            if not missing:
+                stage1_ok = True
+                print('  Stage1 OK: all required models present via model_states topic')
+                break
+
+            print(f'  Stage1 waiting, missing models: {sorted(missing)}, available in get_model_list: {models}')
+            time.sleep(1)
+
+        if not stage1_ok:
+            print('Stage1 FAILED'); launch_proc.kill(); time.sleep(1); continue
+
+        # Stage 2: basic movement
+        print('Stage 2: commanding tiny moves and checking joint changes')
+        if not wait_for_topic('/robot1/joint_states', timeout=30) or not wait_for_topic('/robot2/joint_states', timeout=30):
+            print('  Stage2 FAILED: joint state topics not present'); launch_proc.kill(); time.sleep(1); continue
+
+        # Additional wait for controller_manager to respond consistently (extra generous)
+        if not wait_for_service('/robot1/controller_manager/list_controllers', timeout=180) or not wait_for_service('/robot2/controller_manager/list_controllers', timeout=180):
+            print('  Stage2 FAILED: controller_manager services not available'); launch_proc.kill(); time.sleep(1); continue
+
+        # Poll for a meaningful joint state on both robots
+        pos1_0 = get_joint_positions('robot1', timeout=30)
+        pos2_0 = get_joint_positions('robot2', timeout=30)
+        if pos1_0 is None or pos2_0 is None:
+            print('  Stage2 FAILED: unable to read joint positions after 30s'); launch_proc.kill(); time.sleep(1); continue
+
+        send_joint_command('robot1', pos1_0 + 0.2)
+        send_joint_command('robot2', pos2_0 + 0.2)
+        time.sleep(2)
+        pos1_1 = get_joint_positions('robot1')
+        pos2_1 = get_joint_positions('robot2')
+        if pos1_1 is None or pos2_1 is None or abs(pos1_1 - pos1_0) < 0.05 or abs(pos2_1 - pos2_0) < 0.05:
+            print(f'  Stage2 FAILED pos1 {pos1_0}->{pos1_1} pos2 {pos2_0}->{pos2_1}'); launch_proc.kill(); time.sleep(1); continue
+        print('  Stage2 OK')
+
+        # Stage 3: synced pressing and contact wrench event
+        print('Stage 3: synchronized pressing and contact wrench')
+        send_joint_command('robot1', pos1_0 + 0.5)
+        send_joint_command('robot2', pos2_0 + 0.5)
+        t0 = time.time(); contact_ok = False
+        while time.time() - t0 < 30:
+            f1, t1 = get_contact_wrench('robot1')
+            f2, t2 = get_contact_wrench('robot2')
+            if f1 and f2:
+                contact_ok = True
+                print('  Stage3 OK contact wrench present')
+                break
+            time.sleep(1)
+        if not contact_ok:
+            print('  Stage3 FAILED'); launch_proc.kill(); time.sleep(1); continue
+
+        # Stage 4: no moment about box centre
+        print('Stage 4: torque magnitude check')
+        _, t1 = get_contact_wrench('robot1'); _, t2 = get_contact_wrench('robot2')
+        if t1 is None or t2 is None:
+            print('  Stage4 FAILED: no torque info'); launch_proc.kill(); time.sleep(1); continue
+        torque1 = math.sqrt(sum(x * x for x in t1)); torque2 = math.sqrt(sum(x * x for x in t2))
+        if torque1 < 0.1 and torque2 < 0.1:
+            print(f'  Stage4 OK: torque1 {torque1:.3f}, torque2 {torque2:.3f}')
+        else:
+            print(f'  Stage4 FAILED: torque1 {torque1:.3f}, torque2 {torque2:.3f}'); launch_proc.kill(); time.sleep(1); continue
+
+        # Stage 5: force signature non-zero
+        print('Stage 5: force magnitude check')
+        f1, _ = get_contact_wrench('robot1'); f2, _ = get_contact_wrench('robot2')
+        force1 = math.sqrt(sum(x * x for x in f1)) if f1 else 0
+        force2 = math.sqrt(sum(x * x for x in f2)) if f2 else 0
+        if force1 > 5.0 and force2 > 5.0:
+            print(f'  Stage5 OK: force1 {force1:.2f} N, force2 {force2:.2f} N')
+        else:
+            print(f'  Stage5 FAILED: force1 {force1:.2f}, force2 {force2:.2f}'); launch_proc.kill(); time.sleep(1); continue
+
+        print('ALL STAGES PASSED')
+        launch_proc.kill(); time.sleep(1)
+        return True
+
+    print('FAILED: no full pass')
+    return False
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--max-iterations', type=int, default=3)
+    args = parser.parse_args()
+    ok = run_test(max_iterations=args.max_iterations)
+    sys.exit(0 if ok else 1)

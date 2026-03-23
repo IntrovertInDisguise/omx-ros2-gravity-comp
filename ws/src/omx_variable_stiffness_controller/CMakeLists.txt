@@ -62,6 +62,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   scripts/load_stiffness.py
   scripts/logger.py
+  scripts/spawn_robot.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

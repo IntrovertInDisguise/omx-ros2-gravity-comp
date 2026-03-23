@@ -6,6 +6,8 @@
   "workspaceFolder": "/workspaces/omx_ros2",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/omx_ros2,type=bind,consistency=cached",
 
+  "shutdownAction": "stopContainer",
+
   "containerEnv": {
     "ROS_DISTRO": "humble"
   },

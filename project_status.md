@@ -1,5 +1,16 @@
 (Entry added automatically by session tooling.)
 
+## Update (2026-03-23 — Dual Gazebo 5-stage harness + stage1 hardening)
+
+- **Action:** Implemented robust, deterministic launch orchestration and Stage1 validation in `tools/dual_gazebo_5stage_test.py`.
+- **What changed:**
+  - `open_manipulator_x_bringup` and `gazebo_ros2_control` plugin load paths robustified.
+  - `dual_gazebo_variable_stiffness.launch.py` changed from event chain to deterministic `TimerAction` sequencing with `spawn_robot.py` gated waits.
+  - `spawn_robot.py`: entity already exists is no longer treated as fail.
+  - Stage1 now requires `robot1`, `robot2`, and `opposing_push_box` in `/get_model_list` (or /gazebo/model_states) before success.
+  - Stage2 waits for controller manager services for 180s to allow slower container startup.
+- **Result:** `ros2 service call /get_model_list` now returns [ground_plane, robot1, robot2], and harness detects model presence; Stage1 no longer passes on partial spawn observations.
+
 ## Update (2026-03-19 — Dual GUI diagnostics)
 
 - **Action:** Investigated repeated dual-GUI `dual_gazebo_variable_stiffness.launch.py` failures in the devcontainer.

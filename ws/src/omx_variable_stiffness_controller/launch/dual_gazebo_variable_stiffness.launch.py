@@ -1,589 +1,304 @@
 #!/usr/bin/env python3
-"""
-Dual Open Manipulator X with Variable Stiffness Control in Gazebo Simulation.
-
-Launches two independent simulated robots in one Gazebo world with variable
-Cartesian impedance control.  Each arm has its own independent trajectory
-and stiffness profile.
-
-Architecture:
-  - When Gazebo is available (launch_gazebo:=true AND plugin present),
-    each robot's URDF includes a gazebo_ros2_control plugin that creates
-    its own controller_manager in the correct namespace.  No standalone
-    ros2_control_node is started.
-  - When Gazebo is unavailable (launch_gazebo:=false OR plugin missing),
-    the URDF is rendered with use_fake_hardware:=true and standalone
-    ros2_control_node processes manage the controllers.
-"""
 
 import os
-
+from ament_index_python.packages import get_package_share_path
 from launch import LaunchDescription
-from launch.actions import (
-    DeclareLaunchArgument,
-    ExecuteProcess,
-    IncludeLaunchDescription,
-    LogInfo,
-    RegisterEventHandler,
-    SetEnvironmentVariable,
-    TimerAction,
-)
-from launch.conditions import IfCondition, UnlessCondition
+from launch.actions import ExecuteProcess, SetEnvironmentVariable, RegisterEventHandler, LogInfo
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import (
-    Command,
-    EnvironmentVariable,
-    FindExecutable,
-    LaunchConfiguration,
-    PathJoinSubstitution,
-    PythonExpression,
-)
 from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
+from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
-
 def generate_launch_description():
-    declared_arguments = [
-        DeclareLaunchArgument(
-            'start_rviz', default_value='false',
-            description='Whether to start RViz2'),
-        DeclareLaunchArgument(
-            'robot1_csv_file', default_value='',
-            description='Path to Robot 1 stiffness profile CSV (optional)'),
-        DeclareLaunchArgument(
-            'robot2_csv_file', default_value='',
-            description='Path to Robot 2 stiffness profile CSV (optional)'),
-        DeclareLaunchArgument(
-            'enable_logger', default_value='false',
-            description='Whether to enable data logging for both arms'),
-        DeclareLaunchArgument(
-            'enable_live_plot', default_value='true',
-            description='Start live timeseries plotter (variable_stiffness, robot1+robot2)'),
-        DeclareLaunchArgument(
-            'world', default_value='',
-            description='Gazebo world file (optional)'),
-        DeclareLaunchArgument(
-            'launch_gazebo', default_value='true',
-            description='Whether to start gzserver (false = headless fake-hw)'),
-        DeclareLaunchArgument(
-            'gui', default_value='false',
-            description='Whether to start Gazebo GUI (gzclient)'),
+    pkg_root = get_package_share_path('omx_variable_stiffness_controller')
+
+    # Environment variables for container stability
+    env_actions = [
+        SetEnvironmentVariable('LIBGL_ALWAYS_SOFTWARE', '1'),
+        SetEnvironmentVariable('SDL_AUDIODRIVER', 'dummy'),
+        SetEnvironmentVariable('GAZEBO_HEADLESS_RENDERING', '1'),
+        SetEnvironmentVariable('GAZEBO_PLUGIN_PATH',
+            '/opt/ros/humble/lib:/opt/ros/humble/lib/gazebo_ros'),
+        SetEnvironmentVariable('GAZEBO_MODEL_PATH',
+            str(get_package_share_path('open_manipulator_x_description') / 'models')),
+        SetEnvironmentVariable('LD_LIBRARY_PATH',
+            f"/opt/ros/humble/lib:{os.environ.get('LD_LIBRARY_PATH', '')}"),
     ]
 
-    start_rviz = LaunchConfiguration('start_rviz')
-    robot1_csv_file = LaunchConfiguration('robot1_csv_file')
-    robot2_csv_file = LaunchConfiguration('robot2_csv_file')
-    enable_logger = LaunchConfiguration('enable_logger')
-    enable_live_plot = LaunchConfiguration('enable_live_plot')
-    world = LaunchConfiguration('world')
-    launch_gazebo = LaunchConfiguration('launch_gazebo')
-    gui = LaunchConfiguration('gui')
-
-    # ── Plugin detection ─────────────────────────────────────────────────
-    _PLUGIN_AVAILABLE = (
-        os.path.exists('/opt/ros/humble/lib/libgazebo_ros2_control.so') or
-        os.path.exists('/workspaces/omx_ros2/ws/build/gazebo_ros2_control/libgazebo_ros2_control.so') or
-        os.path.exists('/workspaces/omx_ros2/ws/install/gazebo_ros2_control/lib/libgazebo_ros2_control.so')
-    )
-
-    # effective_gazebo: True ONLY when the user wants Gazebo AND the plugin
-    # actually exists.  ALL Gazebo-specific actions are gated on this.
-    effective_gazebo = PythonExpression([
-        "('", launch_gazebo, "' == 'true') and ",
-        ('True' if _PLUGIN_AVAILABLE else 'False'),
-    ])
-
-    # use_fake_hw: True when NOT using real Gazebo (headless or plugin absent)
-    use_fake_hw = PythonExpression([
-        "not (('", launch_gazebo, "' == 'true') and ",
-        ('True' if _PLUGIN_AVAILABLE else 'False'),
-        ")",
-    ])
-
-    # ── Controller configs (Gazebo-tuned) ────────────────────────────────
-    controller_config_r1 = PathJoinSubstitution([
-        FindPackageShare('omx_variable_stiffness_controller'),
-        'config', 'robot1_gazebo_variable_stiffness.yaml'
-    ])
-    controller_config_r2 = PathJoinSubstitution([
-        FindPackageShare('omx_variable_stiffness_controller'),
-        'config', 'robot2_gazebo_variable_stiffness.yaml'
-    ])
-
-    # ── URDFs via xacro ──────────────────────────────────────────────────
+    # URDF descriptions (xacro)
     urdf_robot1 = Command([
-        PathJoinSubstitution([FindExecutable(name='xacro')]), ' ',
-        PathJoinSubstitution([
-            FindPackageShare('open_manipulator_x_description'),
-            'urdf', 'open_manipulator_x_robot.urdf.xacro'
-        ]),
-        ' use_sim:=', effective_gazebo,
-        ' use_fake_hardware:=', use_fake_hw,
-        ' prefix:=robot1_',
-        ' robot_namespace:=/robot1',
-        ' controller_config:=', controller_config_r1,
+        FindExecutable(name='xacro'), ' ',
+        PathJoinSubstitution([FindPackageShare('open_manipulator_x_description'), 'urdf', 'open_manipulator_x_robot.urdf.xacro']),
+        ' use_sim:=true use_fake_hardware:=false robot_namespace:=robot1'
     ])
-
     urdf_robot2 = Command([
-        PathJoinSubstitution([FindExecutable(name='xacro')]), ' ',
-        PathJoinSubstitution([
-            FindPackageShare('open_manipulator_x_description'),
-            'urdf', 'open_manipulator_x_robot.urdf.xacro'
-        ]),
-        ' use_sim:=', effective_gazebo,
-        ' use_fake_hardware:=', use_fake_hw,
-        ' prefix:=robot2_',
-        ' robot_namespace:=/robot2',
-        ' controller_config:=', controller_config_r2,
+        FindExecutable(name='xacro'), ' ',
+        PathJoinSubstitution([FindPackageShare('open_manipulator_x_description'), 'urdf', 'open_manipulator_x_robot.urdf.xacro']),
+        ' use_sim:=true use_fake_hardware:=false robot_namespace:=robot2'
     ])
 
-    # ── RViz config ──────────────────────────────────────────────────────
-    rviz_config_file = PathJoinSubstitution([
-        FindPackageShare('omx_dual_bringup'),
-        'rviz', 'dual_robots.rviz'
-    ])
-
-    # ── Robot State Publishers ───────────────────────────────────────────
-    # use_sim_time must match whether we're actually using Gazebo sim time.
     robot1_state_publisher = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        name='robot_state_publisher',
-        namespace='robot1',
-        parameters=[{
-            'robot_description': ParameterValue(urdf_robot1, value_type=str),
-            'use_sim_time': _PLUGIN_AVAILABLE,
-            'frame_prefix': 'robot1_',
-        }],
-        output='screen',
+        package='robot_state_publisher', executable='robot_state_publisher',
+        namespace='robot1', parameters=[{'robot_description': urdf_robot1, 'use_sim_time': True}], output='screen'
     )
-
     robot2_state_publisher = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        name='robot_state_publisher',
-        namespace='robot2',
-        parameters=[{
-            'robot_description': ParameterValue(urdf_robot2, value_type=str),
-            'use_sim_time': _PLUGIN_AVAILABLE,
-            'frame_prefix': 'robot2_',
-        }],
-        output='screen',
+        package='robot_state_publisher', executable='robot_state_publisher',
+        namespace='robot2', parameters=[{'robot_description': urdf_robot2, 'use_sim_time': True}], output='screen'
     )
 
-    # ── Warning when plugin is missing ───────────────────────────────────
-    plugin_warning = LogInfo(
-        msg='[dual_gazebo_vs] gazebo_ros2_control plugin NOT found — '
-            'falling back to fake hardware (headless mode)',
-        condition=UnlessCondition(effective_gazebo),
-    )
-
-    # ── Gazebo environment ───────────────────────────────────────────────
-    plugin_path = SetEnvironmentVariable(
-        'GAZEBO_PLUGIN_PATH',
-        [
-          # Prefer the workspace-built gazebo_ros2_control plugin when available.
-          '/workspaces/omx_ros2/ws/build/gazebo_ros2_control',
-          '/workspaces/omx_ros2/ws/install/gazebo_ros2_control/lib',
-          '/opt/ros/humble/lib',
-          EnvironmentVariable('GAZEBO_PLUGIN_PATH', default_value='')
-        ]
-    )
-    ld_library_path = SetEnvironmentVariable(
-        'LD_LIBRARY_PATH',
-        ['/workspaces/omx_ros2/ws/build/gazebo_ros2_control:',
-         '/workspaces/omx_ros2/ws/install/gazebo_ros2_control/lib:',
-         '/opt/ros/humble/lib/x86_64-linux-gnu:',
-         '/opt/ros/humble/lib:',
-         EnvironmentVariable('LD_LIBRARY_PATH', default_value='')]
-    )
-    preload_lib = SetEnvironmentVariable(
-        'LD_PRELOAD',
-        '/workspaces/omx_ros2/ws/build/gazebo_ros2_control/libgazebo_ros2_control.so'
-    )
-    set_libgl_sw = SetEnvironmentVariable('LIBGL_ALWAYS_SOFTWARE', '1')
-
-    # ── Gazebo server + client ───────────────────────────────────────────
+    # Gazebo server & client
+    world_path = os.path.join(pkg_root, 'worlds', 'empty.world')
     gazebo_server = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('gazebo_ros'),
-                'launch', 'gzserver.launch.py'
-            ])
+            PathJoinSubstitution([FindPackageShare('gazebo_ros'), 'launch', 'gzserver.launch.py'])
         ]),
-        condition=IfCondition(effective_gazebo),
-        launch_arguments={'verbose': 'false'}.items(),
+        launch_arguments={'world': world_path, 'verbose': 'false'}.items()
     )
-
     gazebo_client = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('gazebo_ros'),
-                'launch', 'gzclient.launch.py'
-            ])
+            PathJoinSubstitution([FindPackageShare('gazebo_ros'), 'launch', 'gzclient.launch.py'])
         ]),
-        condition=IfCondition(PythonExpression([
-            "('", gui, "' == 'true') and ",
-            ('True' if _PLUGIN_AVAILABLE else 'False'),
-        ])),
+        condition=IfCondition('true')   # set to 'false' if you don't want GUI
     )
 
-    # ── Spawn robots in Gazebo ───────────────────────────────────────────
-    spawn_robot1 = Node(
-        package='gazebo_ros',
-        executable='spawn_entity.py',
-        arguments=[
-            '-topic', '/robot1/robot_description',
-            '-entity', 'robot1',
-            '-x', '0.0', '-y', '0.3', '-z', '0.0',
-            '-robot_namespace', 'robot1',
-        ],
-        output='screen',
+    # Spawn robots using wait_and_spawn.sh
+    wait_and_spawn_script = os.path.join(pkg_root, 'scripts', 'wait_and_spawn.sh')
+    spawn_robot1 = ExecuteProcess(
+        cmd=['bash', wait_and_spawn_script, 'robot1', '/gazebo/model_states', '120'],
+        output='screen'
+    )
+    spawn_robot2 = ExecuteProcess(
+        cmd=['bash', wait_and_spawn_script, 'robot2', '/robot1/joint_states', '120'],
+        output='screen'
     )
 
-    spawn_robot2 = Node(
-        package='gazebo_ros',
-        executable='spawn_entity.py',
-        arguments=[
-            '-topic', '/robot2/robot_description',
-            '-entity', 'robot2',
-            '-x', '0.0', '-y', '-0.3', '-z', '0.0',
-            '-robot_namespace', 'robot2',
-        ],
-        output='screen',
-    )
-
-    # Delay spawns to let gzserver start (service /spawn_entity can take a while to appear)
-    delay_spawn_r1 = TimerAction(
-        period=10.0,
-        actions=[spawn_robot1],
-        condition=IfCondition(effective_gazebo),
-    )
-
-    # ── Controller spawners (Gazebo path) ────────────────────────────────
-    #
-    # CRITICAL: Both Gazebo ros2_control plugins run inside the same
-    # gzserver process.  If robot2 is spawned while robot1's controllers
-    # are still being configured, the plugin initialization for robot2
-    # contaminates the namespace context and robot1's controller ends up
-    # with robot2's parameters (causing "Parameter 'joints' is empty").
-    #
-    # Solution: Fully serialize the bringup chain:
-    #   spawn_r1 → jsb_r1 → vs_r1 → spawn_r2 → jsb_r2 → vs_r2
-    # This ensures each robot's plugin is fully initialised before the
-    # next robot is spawned.
-    _CM_TIMEOUT = '120'
-
+    # Controller spawners
     load_jsb_r1 = Node(
         package='controller_manager', executable='spawner',
-        arguments=['joint_state_broadcaster',
-                   '--controller-manager', '/robot1/controller_manager',
-                   '--controller-manager-timeout', _CM_TIMEOUT],
-        output='screen',
+        arguments=['joint_state_broadcaster', '--controller-manager', '/robot1/controller_manager',
+                   '--controller-manager-timeout', '120'],
+        output='screen'
     )
     load_vs_r1 = Node(
         package='controller_manager', executable='spawner',
-        arguments=['robot1_variable_stiffness',
-                   '--controller-manager', '/robot1/controller_manager',
-                   '--param-file', controller_config_r1,
-                   '--controller-manager-timeout', _CM_TIMEOUT],
-        output='screen',
+        arguments=['robot1_variable_stiffness', '--controller-manager', '/robot1/controller_manager',
+                   '--param-file', os.path.join(pkg_root, 'config', 'robot1_gazebo_variable_stiffness.yaml'),
+                   '--controller-manager-timeout', '120'],
+        output='screen'
     )
-
     load_jsb_r2 = Node(
         package='controller_manager', executable='spawner',
-        arguments=['joint_state_broadcaster',
-                   '--controller-manager', '/robot2/controller_manager',
-                   '--controller-manager-timeout', _CM_TIMEOUT],
-        output='screen',
+        arguments=['joint_state_broadcaster', '--controller-manager', '/robot2/controller_manager',
+                   '--controller-manager-timeout', '120'],
+        output='screen'
     )
     load_vs_r2 = Node(
         package='controller_manager', executable='spawner',
-        arguments=['robot2_variable_stiffness',
-                   '--controller-manager', '/robot2/controller_manager',
-                   '--param-file', controller_config_r2,
-                   '--controller-manager-timeout', _CM_TIMEOUT],
-        output='screen',
-    )
-
-    # Fully serialized Gazebo event chain:
-    #   spawn_r1 exits → load jsb_r1
-    start_jsb_r1_after_spawn = RegisterEventHandler(
-        OnProcessExit(target_action=spawn_robot1, on_exit=[load_jsb_r1]),
-        condition=IfCondition(effective_gazebo),
-    )
-    #   jsb_r1 exits → load vs_r1
-    start_vs_r1_after_jsb = RegisterEventHandler(
-        OnProcessExit(target_action=load_jsb_r1, on_exit=[load_vs_r1]),
-        condition=IfCondition(effective_gazebo),
-    )
-    #   vs_r1 exits → wait until robot1 controller_manager is ready
-    # before spawning robot2. This is stronger than fixed time delay.
-    wait_for_robot1_ready = ExecuteProcess(
-        cmd=['bash', '-lc',
-             'source /opt/ros/humble/setup.bash && '
-             'source /workspaces/omx_ros2/ws/install/setup.bash && '
-             'echo "waiting for /robot1/controller_manager/list_controllers" && '
-             'until ros2 service list | grep -x "/robot1/controller_manager/list_controllers"; do sleep 0.5; done && '
-             'echo "robot1 list_controllers available" && '
-             'for i in $(seq 1 60); do '\
-                 'resp=$(ros2 service call /robot1/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers "{}" 2>/dev/null) && '\
-                 'echo "$resp" | grep -q "name: \'robot1_variable_stiffness\'" && '\
-                 'echo "$resp" | grep -q "state: active" && exit 0 || true; '\
-               'sleep 1; done && '
-             'echo "robot1_variable_stiffness did not become active" && exit 1'
-        ],
-        output='screen',
-    )
-
-    spawn_r2_after_r1_complete = RegisterEventHandler(
-        OnProcessExit(
-            target_action=load_vs_r1,
-            on_exit=[wait_for_robot1_ready],
-        ),
-        condition=IfCondition(effective_gazebo),
-    )
-
-    spawn_r2_after_wait = RegisterEventHandler(
-        OnProcessExit(
-            target_action=wait_for_robot1_ready,
-            on_exit=[spawn_robot2]
-        ),
-        condition=IfCondition(effective_gazebo),
-    )
-    #   spawn_r2 exits → load jsb_r2
-    start_jsb_r2_after_spawn = RegisterEventHandler(
-        OnProcessExit(target_action=spawn_robot2, on_exit=[load_jsb_r2]),
-        condition=IfCondition(effective_gazebo),
-    )
-    #   jsb_r2 exits → load vs_r2
-    start_vs_r2_after_jsb = RegisterEventHandler(
-        OnProcessExit(target_action=load_jsb_r2, on_exit=[load_vs_r2]),
-        condition=IfCondition(effective_gazebo),
-    )
-
-    # ── Standalone CMs (headless / fake-hw path) ─────────────────────────
-    # Pass robot_description as both top-level param and controller-prefixed
-    # param so on_configure() can read it without a topic subscription
-    # (avoids executor deadlock).
-    ros2_control_r1 = Node(
-        package='controller_manager',
-        executable='ros2_control_node',
-        name='controller_manager',
-        namespace='robot1',
-        parameters=[
-            controller_config_r1,
-            {'robot_description': ParameterValue(urdf_robot1, value_type=str),
-             'robot1_variable_stiffness.robot_description':
-                 ParameterValue(urdf_robot1, value_type=str),
-             'use_sim_time': False},
-        ],
-        output='screen',
-        condition=UnlessCondition(effective_gazebo),
-    )
-
-    ros2_control_r2 = Node(
-        package='controller_manager',
-        executable='ros2_control_node',
-        name='controller_manager',
-        namespace='robot2',
-        parameters=[
-            controller_config_r2,
-            {'robot_description': ParameterValue(urdf_robot2, value_type=str),
-             'robot2_variable_stiffness.robot_description':
-                 ParameterValue(urdf_robot2, value_type=str),
-             'use_sim_time': False},
-        ],
-        output='screen',
-        condition=UnlessCondition(effective_gazebo),
-    )
-
-    # Headless controller loading (event-chained)
-    load_jsb_r1_headless = Node(
-        package='controller_manager', executable='spawner',
-        arguments=['joint_state_broadcaster',
-                   '--controller-manager', '/robot1/controller_manager',
+        arguments=['robot2_variable_stiffness', '--controller-manager', '/robot2/controller_manager',
+                   '--param-file', os.path.join(pkg_root, 'config', 'robot2_gazebo_variable_stiffness.yaml'),
                    '--controller-manager-timeout', '120'],
-        output='screen',
-    )
-    load_vs_r1_headless = Node(
-        package='controller_manager', executable='spawner',
-        arguments=['robot1_variable_stiffness',
-                   '--controller-manager', '/robot1/controller_manager',
-                   '--param-file', controller_config_r1,
-                   '--controller-manager-timeout', '120'],
-        output='screen',
-    )
-    load_jsb_r2_headless = Node(
-        package='controller_manager', executable='spawner',
-        arguments=['joint_state_broadcaster',
-                   '--controller-manager', '/robot2/controller_manager',
-                   '--controller-manager-timeout', '120'],
-        output='screen',
-    )
-    load_vs_r2_headless = Node(
-        package='controller_manager', executable='spawner',
-        arguments=['robot2_variable_stiffness',
-                   '--controller-manager', '/robot2/controller_manager',
-                   '--param-file', controller_config_r2,
-                   '--controller-manager-timeout', '120'],
-        output='screen',
+        output='screen'
     )
 
-    delay_headless_r1 = TimerAction(
-        period=3.0,
-        actions=[load_jsb_r1_headless],
-        condition=UnlessCondition(effective_gazebo),
+    # Chain controllers after spawn
+    chain_r1 = RegisterEventHandler(
+        OnProcessExit(target_action=spawn_robot1, on_exit=[load_jsb_r1, load_vs_r1])
     )
-    delay_headless_r2 = TimerAction(
-        period=3.5,
-        actions=[load_jsb_r2_headless],
-        condition=UnlessCondition(effective_gazebo),
-    )
-    start_vs_r1_headless = RegisterEventHandler(
-        OnProcessExit(target_action=load_jsb_r1_headless,
-                      on_exit=[load_vs_r1_headless]),
-        condition=UnlessCondition(effective_gazebo),
-    )
-    start_vs_r2_headless = RegisterEventHandler(
-        OnProcessExit(target_action=load_jsb_r2_headless,
-                      on_exit=[load_vs_r2_headless]),
-        condition=UnlessCondition(effective_gazebo),
-    )
-
-    # ── Stiffness profile loaders (optional CSV) ─────────────────────────
-    robot1_stiffness_loader = Node(
-        package='omx_variable_stiffness_controller',
-        executable='load_stiffness.py',
-        namespace='robot1',
-        name='stiffness_loader',
-        parameters=[{
-            'csv_path': robot1_csv_file,
-            'controller_name': 'robot1_variable_stiffness',
-            'use_sim_time': _PLUGIN_AVAILABLE,
-        }],
-        output='screen',
-        condition=IfCondition(
-            PythonExpression(["'", robot1_csv_file, "' != ''"])
-        ),
-    )
-
-    robot2_stiffness_loader = Node(
-        package='omx_variable_stiffness_controller',
-        executable='load_stiffness.py',
-        namespace='robot2',
-        name='stiffness_loader',
-        parameters=[{
-            'csv_path': robot2_csv_file,
-            'controller_name': 'robot2_variable_stiffness',
-            'use_sim_time': _PLUGIN_AVAILABLE,
-        }],
-        output='screen',
-        condition=IfCondition(
-            PythonExpression(["'", robot2_csv_file, "' != ''"])
-        ),
-    )
-
-    delay_stiffness_loaders = TimerAction(
-        period=10.0,
-        actions=[robot1_stiffness_loader, robot2_stiffness_loader],
-    )
-
-    # ── Data loggers (optional) ──────────────────────────────────────────
-    robot1_logger = Node(
-        package='omx_variable_stiffness_controller',
-        executable='logger.py',
-        namespace='robot1',
-        name='csv_data_logger',
-        parameters=[{
-            'controller_name': 'robot1_variable_stiffness',
-            'output_dir': '/tmp/variable_stiffness_logs/dual_gazebo/robot1',
-            'use_sim_time': _PLUGIN_AVAILABLE,
-        }],
-        output='screen',
-        condition=IfCondition(enable_logger),
-    )
-
-    robot2_logger = Node(
-        package='omx_variable_stiffness_controller',
-        executable='logger.py',
-        namespace='robot2',
-        name='csv_data_logger',
-        parameters=[{
-            'controller_name': 'robot2_variable_stiffness',
-            'output_dir': '/tmp/variable_stiffness_logs/dual_gazebo/robot2',
-            'use_sim_time': _PLUGIN_AVAILABLE,
-        }],
-        output='screen',
-        condition=IfCondition(enable_logger),
-    )
-
-    delay_loggers = TimerAction(
-        period=10.0,
-        actions=[robot1_logger, robot2_logger],
-    )
-
-    # ── RViz ─────────────────────────────────────────────────────────────
-    rviz_node = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        arguments=['-d', rviz_config_file],
-        parameters=[{'use_sim_time': _PLUGIN_AVAILABLE}],
-        output='screen',
-        condition=IfCondition(start_rviz),
-    )
-
-    _d = os.path.dirname(os.path.abspath(__file__))
-    for _ in range(10):
-        if os.path.isfile(os.path.join(_d, 'tools', 'live_plot_logs.py')):
-            break
-        _d = os.path.dirname(_d)
-    _live_plot_script = os.path.join(_d, 'tools', 'live_plot_logs.py')
-    live_plot = TimerAction(
-        period=12.0,
-        actions=[ExecuteProcess(
-            cmd=['python3', _live_plot_script,
-                 '--controller', 'variable_stiffness',
-                 '--namespace',  '/robot1/robot1_variable_stiffness',
-                 '--namespace2', '/robot2/robot2_variable_stiffness'],
-            output='screen',
-            condition=IfCondition(enable_live_plot),
-        )],
+    chain_r2 = RegisterEventHandler(
+        OnProcessExit(target_action=spawn_robot2, on_exit=[load_jsb_r2, load_vs_r2])
     )
 
     return LaunchDescription([
-        *declared_arguments,
-        plugin_warning,
-        set_libgl_sw,
-        plugin_path,
-        ld_library_path,
-        preload_lib,
-        # Robot state publishers (always needed)
+        LogInfo(msg='[dual_gazebo_vs] Starting with container‑safe environment'),
+        *env_actions,
         robot1_state_publisher,
         robot2_state_publisher,
-        # Gazebo path (gated on effective_gazebo) — fully serialized:
-        #   gzserver → spawn_r1 → jsb_r1 → vs_r1 → spawn_r2 → jsb_r2 → vs_r2
         gazebo_server,
         gazebo_client,
-        delay_spawn_r1,
-        start_jsb_r1_after_spawn,
-        start_vs_r1_after_jsb,
-        spawn_r2_after_r1_complete,
-        start_jsb_r2_after_spawn,
-        start_vs_r2_after_jsb,
-        # Headless / fake-hw path (gated on NOT effective_gazebo)
-        ros2_control_r1,
-        ros2_control_r2,
-        delay_headless_r1,
-        delay_headless_r2,
-        start_vs_r1_headless,
-        start_vs_r2_headless,
-        # Post-controller
-        delay_stiffness_loaders,
-        delay_loggers,
-        live_plot,
-        rviz_node,
+        spawn_robot1,
+        spawn_robot2,
+        chain_r1,
+        chain_r2,
     ])
+# #!/usr/bin/env python3
+# """
+# Dual Open Manipulator X with Variable Stiffness Control in Gazebo Simulation.
+
+# This launch file starts two robot instances (robot1, robot2) in Gazebo with
+
+# - Gazebo plugin path and rendering shims for container compatibility
+# - Explicit timing for spawn/controller-activation ordering
+# - External helper script [spawn_robot] to gate robot spawn on topic/service readiness
+# """
+
+# import os
+
+# from ament_index_python.packages import get_package_share_path
+# from launch import LaunchDescription
+# from launch.actions import ExecuteProcess, IncludeLaunchDescription, LogInfo, RegisterEventHandler, SetEnvironmentVariable, TimerAction
+# from launch.conditions import IfCondition
+# from launch.event_handlers import OnProcessExit
+# from launch.launch_description_sources import PythonLaunchDescriptionSource
+# from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
+# from launch_ros.actions import Node
+# from launch_ros.substitutions import FindPackageShare
+
+
+# def generate_launch_description():
+#     # Settings
+#     disable_gui = False
+
+#     # Paths
+#     pkg_root = get_package_share_path('omx_variable_stiffness_controller')
+#     use_sim = 'true'
+
+#     # Environment / stability hints
+#     env_actions = [
+#         SetEnvironmentVariable('LIBGL_ALWAYS_SOFTWARE', '1'),
+#         SetEnvironmentVariable('GAZEBO_HEADLESS_RENDERING', '1'),
+#         SetEnvironmentVariable('GAZEBO_PLUGIN_PATH',
+#             '/workspaces/omx_ros2/ws/build/gazebo_ros2_control:/workspaces/omx_ros2/ws/install/gazebo_ros2_control/lib:/opt/ros/humble/lib'),
+#         SetEnvironmentVariable('LD_LIBRARY_PATH',
+#             '/workspaces/omx_ros2/ws/build/gazebo_ros2_control:/workspaces/omx_ros2/ws/install/gazebo_ros2_control/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:' + os.environ.get('LD_LIBRARY_PATH','')),
+#         SetEnvironmentVariable('GAZEBO_MODEL_PATH',
+#             os.path.join(get_package_share_path('open_manipulator_x_description'), 'models')),
+#     ]
+
+#     plugin_warning = LogInfo(msg='[dual_gazebo_vs] gazebo_ros2_control plugin path adjusted (container-safe)')
+
+#     urdf_robot1 = Command([
+#         FindExecutable(name='xacro'), ' ',
+#         PathJoinSubstitution([FindPackageShare('open_manipulator_x_description'), 'urdf', 'open_manipulator_x_robot.urdf.xacro']),
+#         ' use_sim:=true',
+#         ' use_fake_hardware:=false',
+#         ' robot_namespace:=robot1'
+#     ])
+
+#     urdf_robot2 = Command([
+#         FindExecutable(name='xacro'), ' ',
+#         PathJoinSubstitution([FindPackageShare('open_manipulator_x_description'), 'urdf', 'open_manipulator_x_robot.urdf.xacro']),
+#         ' use_sim:=true',
+#         ' use_fake_hardware:=false',
+#         ' robot_namespace:=robot2'
+#     ])
+
+#     robot1_state_publisher = Node(
+#         package='robot_state_publisher', executable='robot_state_publisher', namespace='robot1',
+#         parameters=[{'robot_description': urdf_robot1, 'use_sim_time': True}],
+#         output='screen',
+#     )
+
+#     robot2_state_publisher = Node(
+#         package='robot_state_publisher', executable='robot_state_publisher', namespace='robot2',
+#         parameters=[{'robot_description': urdf_robot2, 'use_sim_time': True}],
+#         output='screen',
+#     )
+
+#     # Gazebo server + client with gazebo_ros launch wrappers to expose proper services
+#     world_path = os.path.join(pkg_root, 'worlds', 'empty.world')
+
+#     gazebo_server = IncludeLaunchDescription(
+#         PythonLaunchDescriptionSource([
+#             PathJoinSubstitution([
+#                 FindPackageShare('gazebo_ros'),
+#                 'launch',
+#                 'gzserver.launch.py',
+#             ])
+#         ]),
+#         launch_arguments={
+#             'world': world_path,
+#             'verbose': 'false',
+#         }.items(),
+#     )
+
+#     gazebo_client = IncludeLaunchDescription(
+#         PythonLaunchDescriptionSource([
+#             PathJoinSubstitution([
+#                 FindPackageShare('gazebo_ros'),
+#                 'launch',
+#                 'gzclient.launch.py',
+#             ])
+#         ]),
+#         condition=IfCondition('true' if not disable_gui else 'false'),
+#     )
+
+#     # Gazebo spawner nodes (external helper script, robust wait conditions)
+#     spawn_robot_path = '/workspaces/omx_ros2/ws/src/omx_variable_stiffness_controller/scripts/spawn_robot.py'
+
+#     spawn_robot1 = ExecuteProcess(
+#         cmd=['python3', spawn_robot_path,
+#              '--robot', 'robot1',
+#              '--topic', '/gazebo/model_states',
+#              '--timeout', '120',
+#              '--urdf_topic', '/robot1/robot_description',
+#              '--ns', 'robot1',
+#              '--x', '0.0',
+#              '--y', '0.3',
+#              '--z', '0.0'],
+#         output='screen',
+#     )
+
+#     spawn_robot2 = ExecuteProcess(
+#         cmd=['python3', spawn_robot_path,
+#              '--robot', 'robot2',
+#              '--wait_controller', 'robot1',
+#              '--timeout', '120',
+#              '--urdf_topic', '/robot2/robot_description',
+#              '--ns', 'robot2',
+#              '--x', '0.0',
+#              '--y', '-0.3',
+#              '--z', '0.0'],
+#         output='screen',
+#     )
+
+#     # controller manager spawners (same as previous chaining, but timed for reliability)
+#     load_jsb_r1 = Node(
+#         package='controller_manager', executable='spawner',
+#         arguments=['joint_state_broadcaster', '--controller-manager', '/robot1/controller_manager', '--controller-manager-timeout', '120'],
+#         output='screen',
+#     )
+#     load_vs_r1 = Node(
+#         package='controller_manager', executable='spawner',
+#         arguments=['robot1_variable_stiffness', '--controller-manager', '/robot1/controller_manager', '--param-file', os.path.join(pkg_root, 'config', 'robot1_gazebo_variable_stiffness.yaml'), '--controller-manager-timeout', '120'],
+#         output='screen',
+#     )
+#     load_jsb_r2 = Node(
+#         package='controller_manager', executable='spawner',
+#         arguments=['joint_state_broadcaster', '--controller-manager', '/robot2/controller_manager', '--controller-manager-timeout', '120'],
+#         output='screen',
+#     )
+#     load_vs_r2 = Node(
+#         package='controller_manager', executable='spawner',
+#         arguments=['robot2_variable_stiffness', '--controller-manager', '/robot2/controller_manager', '--param-file', os.path.join(pkg_root, 'config', 'robot2_gazebo_variable_stiffness.yaml'), '--controller-manager-timeout', '120'],
+#         output='screen',
+#     )
+
+#     # sequencing actions using timers for deterministic startup
+#     delay_spawn_r1 = TimerAction(period=8.0, actions=[spawn_robot1])
+#     delay_jsb_r1 = TimerAction(period=20.0, actions=[load_jsb_r1])
+#     delay_vs_r1 = TimerAction(period=35.0, actions=[load_vs_r1])
+#     delay_spawn_r2 = TimerAction(period=60.0, actions=[spawn_robot2])
+#     delay_jsb_r2 = TimerAction(period=75.0, actions=[load_jsb_r2])
+#     delay_vs_r2 = TimerAction(period=90.0, actions=[load_vs_r2])
+
+#     # optional diagnostics in case of failure: publish random calcs? (not needed)
+
+#     return LaunchDescription([
+#         plugin_warning,
+#         *env_actions,
+#         robot1_state_publisher,
+#         robot2_state_publisher,
+#         gazebo_server,
+#         gazebo_client,
+#         delay_spawn_r1,
+#         delay_jsb_r1,
+#         delay_vs_r1,
+#         delay_spawn_r2,
+#         delay_jsb_r2,
+#         delay_vs_r2,
+#     ])
+
+
+# if __name__ == '__main__':
+#     generate_launch_description()
