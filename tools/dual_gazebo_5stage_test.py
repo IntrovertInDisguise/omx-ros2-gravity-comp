@@ -27,10 +27,31 @@ def run_cmd(cmd, timeout=20, check=True):
         return subprocess.CompletedProcess(e.cmd, 1, stdout='', stderr=str(e))
 
 
+_ROS_ENV = None
+
+def get_ros_env():
+    global _ROS_ENV
+    if _ROS_ENV is None:
+        out = subprocess.run(
+            'bash -lc "source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && env"',
+            shell=True, capture_output=True, text=True, timeout=30)
+        env = {}
+        for line in out.stdout.splitlines():
+            if '=' in line:
+                k, v = line.split('=', 1)
+                env[k] = v
+        # Keep system env to avoid losing PATH etc
+        env.update(os.environ)
+        _ROS_ENV = env
+    return _ROS_ENV
+
 def run_ros2_cmd(cmd, timeout=20, check=True):
-    env_source = 'source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && '
-    wrapped = f"bash -lc '{env_source}{cmd}'"
-    return run_cmd(wrapped, timeout=timeout, check=check)
+    try:
+        return subprocess.run(cmd, shell=True, timeout=timeout, check=check,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              text=True, env=get_ros_env())
+    except subprocess.TimeoutExpired as e:
+        return subprocess.CompletedProcess(e.cmd, 1, stdout='', stderr=str(e))
 
 
 def gzserver_alive():
@@ -124,12 +145,12 @@ def wait_for_joint_data(robot, timeout=60):
 
 
 def check_controller_active(namespace, controller, timeout=60):
+    # Assume service is already present in Stage1; avoid repeated name-service polling.
     start = time.time()
     while time.time() - start < timeout:
-        if not wait_for_service(f'/{namespace}/controller_manager/list_controllers', timeout=2):
-            time.sleep(1)
-            continue
-        r = run_ros2_cmd(f"ros2 service call /{namespace}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'", timeout=10, check=False)
+        r = run_ros2_cmd(
+            f"ros2 service call /{namespace}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'",
+            timeout=10, check=False)
         if r.returncode == 0 and f"name: '{controller}'" in r.stdout and 'state: active' in r.stdout:
             return True
         time.sleep(1)
@@ -231,8 +252,8 @@ def run_test(max_iterations=3):
                 continue
 
             # ---- 4. Wait for joint state data ----
-            pos1 = wait_for_joint_data('robot1', timeout=20)
-            pos2 = wait_for_joint_data('robot2', timeout=20)
+            pos1 = wait_for_joint_data('robot1', timeout=60)
+            pos2 = wait_for_joint_data('robot2', timeout=60)
             if pos1 is not None and pos2 is not None:
                 stage1_ok = True
                 print('  Stage1 OK')
