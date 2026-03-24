@@ -20,22 +20,22 @@
       <uri>model://sun</uri>
     </include>
 
-    <!-- The opposing push box -->
+    <!-- The opposing push box located in the 0.8m gap between robot bases -->
     <model name="opposing_push_box">
       <static>false</static>
-      <pose>0 0 0.5 0 0 0</pose>
+      <pose>0 0 0.25 0 0 0</pose>
       <link name="body">
         <collision name="collision">
           <geometry>
             <box>
-              <size>0.5 0.5 0.5</size>
+              <size>0.10 0.10 0.5</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>0.5 0.5 0.5</size>
+              <size>0.10 0.10 0.5</size>
             </box>
           </geometry>
           <material>

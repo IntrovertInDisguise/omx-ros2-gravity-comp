@@ -1,5 +1,15 @@
 (Entry added automatically by session tooling.)
 
+## Update (2026-03-24 — Dual Gazebo 5-stage harness full end-to-end run attempt)
+
+- **Action:** Extended 5-stage harness with robust service/topic wait loops and started one full test run to confirm end-to-end behavior.
+- **What changed:**
+  - `tools/dual_gazebo_5stage_test.py` added `os` import for ROS env snapshot and improved Stage1 logic.
+  - `ws/src/omx_variable_stiffness_controller/CMakeLists.txt` now installs `scripts/wait_and_spawn.sh` and `worlds/` directory.
+  - `ws/src/omx_variable_stiffness_controller/worlds/empty.world` now positions opposing push box at `z=0.25`, size `0.10x0.10x0.5` to fit dual-robot scenario.
+  - `ws/src/open_manipulator/open_manipulator_x_bringup/config/gazebo_controller_manager.yaml` added `robot1` and `robot2` controller_manager groups (joint_state_broadcaster + arm/gripper controllers).
+- **Result:** Stage1 model and controller discovery succeeds (robot1/robot2 and box both visible + controller_manager nodes discovered), and end-to-end harness started; final pass requires joint state continuity check to complete.
+
 ## Update (2026-03-23 — Dual Gazebo 5-stage harness + stage1 hardening)
 
 - **Action:** Implemented robust, deterministic launch orchestration and Stage1 validation in `tools/dual_gazebo_5stage_test.py`.

@@ -84,6 +84,16 @@ install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(PROGRAMS
+  scripts/wait_and_spawn.sh
+  DESTINATION share/${PROJECT_NAME}/scripts
+)
+
+install(DIRECTORY
+  worlds
+  DESTINATION share/${PROJECT_NAME}
+)
+
 # tests
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)

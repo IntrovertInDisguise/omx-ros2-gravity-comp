@@ -16,6 +16,7 @@ import sys
 import time
 import math
 import re
+import os
 
 
 def run_cmd(cmd, timeout=20, check=True):
