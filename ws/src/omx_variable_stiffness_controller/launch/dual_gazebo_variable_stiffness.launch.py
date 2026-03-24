@@ -3,21 +3,44 @@
 import os
 from ament_index_python.packages import get_package_share_path
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, SetEnvironmentVariable, RegisterEventHandler, LogInfo
-from launch.conditions import IfCondition
+from launch.actions import (
+    ExecuteProcess,
+    SetEnvironmentVariable,
+    RegisterEventHandler,
+    LogInfo,
+    IncludeLaunchDescription,
+    DeclareLaunchArgument
+)
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
+from launch.actions import TimerAction
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
-from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
+from launch.substitutions import Command, FindExecutable, PathJoinSubstitution, LaunchConfiguration
 from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     pkg_root = get_package_share_path('omx_variable_stiffness_controller')
 
+    press_box = LaunchConfiguration('press_box')
+    gui = LaunchConfiguration('gui')
+    robot1_press_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot1_box_press.yaml'])
+    robot2_press_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot2_box_press.yaml'])
+    robot1_default_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot1_variable_stiffness.yaml'])
+    robot2_default_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot2_variable_stiffness.yaml'])
+
+    declare_press_box = DeclareLaunchArgument('press_box', default_value='true', description='Enable coordinated box press trajectory')
+    declare_gui = DeclareLaunchArgument('gui', default_value='false', description='Run Gazebo client GUI')
+    declare_live_plot = DeclareLaunchArgument('enable_live_plot', default_value='false', description='Start live plot process')
+
     # Environment variables for container stability
+    enable_live_plot = LaunchConfiguration('enable_live_plot')
+
     env_actions = [
         SetEnvironmentVariable('LIBGL_ALWAYS_SOFTWARE', '1'),
         SetEnvironmentVariable('SDL_AUDIODRIVER', 'dummy'),
         SetEnvironmentVariable('GAZEBO_HEADLESS_RENDERING', '1'),
+        SetEnvironmentVariable('GAZEBO_MODEL_DATABASE_URI', ''),  # avoid default fuel lookup in offline CI
         SetEnvironmentVariable('GAZEBO_PLUGIN_PATH',
             '/opt/ros/humble/lib:/opt/ros/humble/lib/gazebo_ros'),
         SetEnvironmentVariable('GAZEBO_MODEL_PATH',
@@ -59,17 +82,18 @@ def generate_launch_description():
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([FindPackageShare('gazebo_ros'), 'launch', 'gzclient.launch.py'])
         ]),
-        condition=IfCondition('true')   # set to 'false' if you don't want GUI
+        condition=IfCondition(gui)
     )
 
     # Spawn robots using wait_and_spawn.sh
     wait_and_spawn_script = os.path.join(pkg_root, 'scripts', 'wait_and_spawn.sh')
     spawn_robot1 = ExecuteProcess(
-        cmd=['bash', wait_and_spawn_script, 'robot1', '/gazebo/model_states', '120'],
+        cmd=['bash', wait_and_spawn_script, 'robot1', '/gazebo/model_states', '120', '0.0', '0.4', '0.0', '-1.5708'],
         output='screen'
     )
+    # Robot2 spawn is triggered after robot1 spawn finishes, using the same gazebo ready condition.
     spawn_robot2 = ExecuteProcess(
-        cmd=['bash', wait_and_spawn_script, 'robot2', '/robot1/joint_states', '120'],
+        cmd=['bash', wait_and_spawn_script, 'robot2', '/gazebo/model_states', '120', '0.0', '-0.4', '0.0', '1.5708'],
         output='screen'
     )
 
@@ -77,39 +101,77 @@ def generate_launch_description():
     load_jsb_r1 = Node(
         package='controller_manager', executable='spawner',
         arguments=['joint_state_broadcaster', '--controller-manager', '/robot1/controller_manager',
-                   '--controller-manager-timeout', '120'],
+                   '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
         output='screen'
     )
-    load_vs_r1 = Node(
+    load_vs_r1_default = Node(
         package='controller_manager', executable='spawner',
         arguments=['robot1_variable_stiffness', '--controller-manager', '/robot1/controller_manager',
-                   '--param-file', os.path.join(pkg_root, 'config', 'robot1_gazebo_variable_stiffness.yaml'),
-                   '--controller-manager-timeout', '120'],
-        output='screen'
+                   '--param-file', robot1_default_yaml, '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
+        output='screen',
+        condition=UnlessCondition(press_box)
     )
+    load_vs_r1_press = Node(
+        package='controller_manager', executable='spawner',
+        arguments=['robot1_variable_stiffness', '--controller-manager', '/robot1/controller_manager',
+                   '--param-file', robot1_press_yaml, '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
+        output='screen',
+        condition=IfCondition(press_box)
+    )
+
     load_jsb_r2 = Node(
         package='controller_manager', executable='spawner',
         arguments=['joint_state_broadcaster', '--controller-manager', '/robot2/controller_manager',
-                   '--controller-manager-timeout', '120'],
+                   '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
         output='screen'
     )
-    load_vs_r2 = Node(
+    load_vs_r2_default = Node(
         package='controller_manager', executable='spawner',
         arguments=['robot2_variable_stiffness', '--controller-manager', '/robot2/controller_manager',
-                   '--param-file', os.path.join(pkg_root, 'config', 'robot2_gazebo_variable_stiffness.yaml'),
-                   '--controller-manager-timeout', '120'],
-        output='screen'
+                   '--param-file', robot2_default_yaml, '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
+        output='screen',
+        condition=UnlessCondition(press_box)
+    )
+    load_vs_r2_press = Node(
+        package='controller_manager', executable='spawner',
+        arguments=['robot2_variable_stiffness', '--controller-manager', '/robot2/controller_manager',
+                   '--param-file', robot2_press_yaml, '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
+        output='screen',
+        condition=IfCondition(press_box)
     )
 
-    # Chain controllers after spawn
+    # Chain robot2 spawn and robot1 controllers after robot1 spawn
     chain_r1 = RegisterEventHandler(
-        OnProcessExit(target_action=spawn_robot1, on_exit=[load_jsb_r1, load_vs_r1])
+        OnProcessExit(target_action=spawn_robot1, on_exit=[
+            spawn_robot2,
+            TimerAction(period=60.0, actions=[load_jsb_r1, load_vs_r1_default, load_vs_r1_press])
+        ])
     )
+    # Chain robot2 controllers after robot2 spawn
     chain_r2 = RegisterEventHandler(
-        OnProcessExit(target_action=spawn_robot2, on_exit=[load_jsb_r2, load_vs_r2])
+        OnProcessExit(target_action=spawn_robot2, on_exit=[
+            TimerAction(period=60.0, actions=[load_jsb_r2, load_vs_r2_default, load_vs_r2_press])
+        ])
+    )
+
+    # Live plot launcher (optional)
+    live_plot = ExecuteProcess(
+        cmd=[
+            'python3', '/workspaces/omx_ros2/tools/live_plot_logs.py',
+            '--controller', 'variable_stiffness',
+            '--namespace', '/robot1',
+            '--namespace2', '/robot2',
+            '--window', '30.0',
+            '--interval', '0.5',
+        ],
+        output='screen',
+        condition=IfCondition(enable_live_plot),
     )
 
     return LaunchDescription([
+        declare_press_box,
+        declare_gui,
+        declare_live_plot,
         LogInfo(msg='[dual_gazebo_vs] Starting with container‑safe environment'),
         *env_actions,
         robot1_state_publisher,
@@ -117,9 +179,9 @@ def generate_launch_description():
         gazebo_server,
         gazebo_client,
         spawn_robot1,
-        spawn_robot2,
         chain_r1,
         chain_r2,
+        live_plot,
     ])
 # #!/usr/bin/env python3
 # """

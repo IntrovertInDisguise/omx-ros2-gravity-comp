@@ -19,9 +19,12 @@ import re
 
 
 def run_cmd(cmd, timeout=20, check=True):
-    return subprocess.run(cmd, shell=True, timeout=timeout, check=check,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          text=True)
+    try:
+        return subprocess.run(cmd, shell=True, timeout=timeout, check=check,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              text=True)
+    except subprocess.TimeoutExpired as e:
+        return subprocess.CompletedProcess(e.cmd, 1, stdout='', stderr=str(e))
 
 
 def run_ros2_cmd(cmd, timeout=20, check=True):
@@ -41,6 +44,10 @@ def wait_for_topic(name, timeout=120):
     while time.time() - start < timeout:
         r = run_ros2_cmd(f"ros2 topic list | grep -x '{name}'", timeout=5, check=False)
         if r.returncode == 0:
+            return True
+        # Fallback: try to see if any message can be got from the topic directly
+        r2 = run_ros2_cmd(f"ros2 topic echo {name} --once", timeout=5, check=False)
+        if r2.returncode == 0 or (r2.stdout and r2.stdout.strip()):
             return True
         time.sleep(1)
     return False
@@ -86,11 +93,47 @@ def get_model_list():
 
 
 def get_joint_positions(robot, timeout=20):
-    out = run_ros2_cmd(f"ros2 topic echo /{robot}/joint_states --once", timeout=timeout, check=False)
+    try:
+        out = run_ros2_cmd(f"ros2 topic echo /{robot}/joint_states --once", timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        return None
     if out.returncode != 0 or not out.stdout:
         return None
     m = re.search(r'position:\s*\[\s*([-+0-9.eE]+)', out.stdout)
     return float(m.group(1)) if m else None
+
+
+def wait_for_joint_position(robot, timeout=60):
+    start = time.time()
+    while time.time() - start < timeout:
+        pos = get_joint_positions(robot, timeout=5)
+        if pos is not None:
+            return pos
+        time.sleep(1)
+    return None
+
+
+def wait_for_joint_data(robot, timeout=60):
+    start = time.time()
+    while time.time() - start < timeout:
+        pos = get_joint_positions(robot, timeout=5)
+        if pos is not None:
+            return pos
+        time.sleep(1)
+    return None
+
+
+def check_controller_active(namespace, controller, timeout=60):
+    start = time.time()
+    while time.time() - start < timeout:
+        if not wait_for_service(f'/{namespace}/controller_manager/list_controllers', timeout=2):
+            time.sleep(1)
+            continue
+        r = run_ros2_cmd(f"ros2 service call /{namespace}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'", timeout=10, check=False)
+        if r.returncode == 0 and f"name: '{controller}'" in r.stdout and 'state: active' in r.stdout:
+            return True
+        time.sleep(1)
+    return False
 
 
 def send_joint_command(robot, value):
@@ -132,47 +175,79 @@ def run_test(max_iterations=3):
             stderr=subprocess.STDOUT,
         )
 
-        # Stage 1: spawn verification
+        # ========== STAGE 1: Spawn verification ==========
         print('Stage 1: checking robot1/robot2/joint_states and box in world')
-        # ensure gazebo has model list service available before sampling
-        if not wait_for_service('/get_model_list', timeout=90):
-            print('  Stage1 FAILED: /get_model_list service not available'); launch_proc.kill(); time.sleep(1); continue
-
         stage1_ok = False
         t0 = time.time()
-        while time.time() - t0 < 240:
+        # Allow time for launch to start Gazebo and spawn scripts
+        time.sleep(5)
+        while time.time() - t0 < 300:  # longer overall timeout
             if not gzserver_alive():
                 print('  gzserver died during stage1')
                 break
 
-            robots_ready = wait_for_topic('/robot1/joint_states', timeout=2) and wait_for_topic('/robot2/joint_states', timeout=2)
-            if not robots_ready:
-                print('  waiting for robot joint_states topics')
+            # ---- 1. Check model list via /get_model_list or /gazebo/model_states ----
+            models_ok = False
+            use_model_states_fallback = False
+
+            if wait_for_service('/get_model_list', timeout=2):
+                models = get_model_list()
+                print(f'  get_model_list returned: {models}')
+                if 'robot1' in models and 'robot2' in models and 'opposing_push_box' in models:
+                    models_ok = True
+                    print('  Models present in /get_model_list')
+                else:
+                    use_model_states_fallback = True
+            else:
+                print('  /get_model_list service not available yet')
+                use_model_states_fallback = True
+
+            if use_model_states_fallback:
+                if wait_for_topic('/gazebo/model_states', timeout=2):
+                    model_states = get_model_states()
+                    print(f'  /gazebo/model_states payload contains robot1: {"robot1" in model_states}, robot2: {"robot2" in model_states}, box: {"opposing_push_box" in model_states}')
+                    if 'robot1' in model_states and 'robot2' in model_states and 'opposing_push_box' in model_states:
+                        models_ok = True
+                        print('  Models present in /gazebo/model_states (fallback)')
+
+            if not models_ok:
                 time.sleep(1)
                 continue
 
-            # require all expected entities to be present to trust Stage1
-            models = get_model_list()
-            if not models:
-                print('  waiting for /get_model_list service response')
+            # ---- 2. Wait for controller manager services ----
+            all_services = run_ros2_cmd('ros2 service list', timeout=5, check=False).stdout.splitlines()
+            relevant = [s for s in all_services if 'controller_manager' in s or 'robot1' in s or 'robot2' in s]
+            print(f'  services present: {relevant}')
+            if not (wait_for_service('/robot1/controller_manager/list_controllers', timeout=5) and
+                    wait_for_service('/robot2/controller_manager/list_controllers', timeout=5)):
                 time.sleep(1)
                 continue
 
-            required_models = {'robot1', 'robot2', 'opposing_push_box'}
-            missing = required_models - set(models)
-            if not missing:
+            # ---- 3. Wait for joint_state_broadcaster to be active ----
+            def is_joint_broadcaster_active(robot):
+                return check_controller_active(robot, 'joint_state_broadcaster', timeout=5)
+            if not (is_joint_broadcaster_active('robot1') and is_joint_broadcaster_active('robot2')):
+                time.sleep(1)
+                continue
+
+            # ---- 4. Wait for joint state data ----
+            pos1 = wait_for_joint_data('robot1', timeout=20)
+            pos2 = wait_for_joint_data('robot2', timeout=20)
+            if pos1 is not None and pos2 is not None:
+                stage1_ok = True
+                print('  Stage1 OK')
+                break
+            time.sleep(1)
+
+        if not stage1_ok:
+            print('Stage1 FAILED')
+            launch_proc.kill()
+            time.sleep(1)
+            continue
+
+            if not missing and box_detected:
                 stage1_ok = True
                 print('  Stage1 OK: all required models present in get_model_list')
-                break
-
-            # also try /gazebo/model_states and /model_states text scan to avoid remapping uncertainty
-            ms = get_model_states()
-            if 'opposing_push_box' in ms:
-                missing.discard('opposing_push_box')
-
-            if not missing:
-                stage1_ok = True
-                print('  Stage1 OK: all required models present via model_states topic')
                 break
 
             print(f'  Stage1 waiting, missing models: {sorted(missing)}, available in get_model_list: {models}')
@@ -181,28 +256,50 @@ def run_test(max_iterations=3):
         if not stage1_ok:
             print('Stage1 FAILED'); launch_proc.kill(); time.sleep(1); continue
 
-        # Stage 2: basic movement
+        # ========== STAGE 2: Basic movement ==========
         print('Stage 2: commanding tiny moves and checking joint changes')
-        if not wait_for_topic('/robot1/joint_states', timeout=30) or not wait_for_topic('/robot2/joint_states', timeout=30):
-            print('  Stage2 FAILED: joint state topics not present'); launch_proc.kill(); time.sleep(1); continue
 
-        # Additional wait for controller_manager to respond consistently (extra generous)
-        if not wait_for_service('/robot1/controller_manager/list_controllers', timeout=180) or not wait_for_service('/robot2/controller_manager/list_controllers', timeout=180):
-            print('  Stage2 FAILED: controller_manager services not available'); launch_proc.kill(); time.sleep(1); continue
+        # Wait for controller_manager services (already done in Stage1, but ensure fresh)
+        if not wait_for_service('/robot1/controller_manager/list_controllers', timeout=30) or \
+           not wait_for_service('/robot2/controller_manager/list_controllers', timeout=30):
+            print('  Stage2 FAILED: controller_manager services not available')
+            launch_proc.kill(); time.sleep(1); continue
 
-        # Poll for a meaningful joint state on both robots
-        pos1_0 = get_joint_positions('robot1', timeout=30)
-        pos2_0 = get_joint_positions('robot2', timeout=30)
+        # Wait for joint_state_broadcaster to be active (critical)
+        def is_joint_state_broadcaster_active(robot):
+            return check_controller_active(robot, 'joint_state_broadcaster', timeout=20)
+
+        if not (is_joint_state_broadcaster_active('robot1') and is_joint_state_broadcaster_active('robot2')):
+            print('  Stage2 FAILED: joint_state_broadcaster not active')
+            launch_proc.kill(); time.sleep(1); continue
+
+        # Wait for joint states to actually contain data
+        def wait_for_joint_data(robot, timeout=60):
+            start = time.time()
+            while time.time() - start < timeout:
+                pos = get_joint_positions(robot)
+                if pos is not None:
+                    return pos
+                time.sleep(1)
+            return None
+
+        pos1_0 = wait_for_joint_data('robot1', timeout=60)
+        pos2_0 = wait_for_joint_data('robot2', timeout=60)
         if pos1_0 is None or pos2_0 is None:
-            print('  Stage2 FAILED: unable to read joint positions after 30s'); launch_proc.kill(); time.sleep(1); continue
+            print('  Stage2 FAILED: joint_states never published any data')
+            launch_proc.kill(); time.sleep(1); continue
 
+        # Send small movement commands
         send_joint_command('robot1', pos1_0 + 0.2)
         send_joint_command('robot2', pos2_0 + 0.2)
-        time.sleep(2)
+        time.sleep(2)   # allow movement
+
         pos1_1 = get_joint_positions('robot1')
         pos2_1 = get_joint_positions('robot2')
         if pos1_1 is None or pos2_1 is None or abs(pos1_1 - pos1_0) < 0.05 or abs(pos2_1 - pos2_0) < 0.05:
-            print(f'  Stage2 FAILED pos1 {pos1_0}->{pos1_1} pos2 {pos2_0}->{pos2_1}'); launch_proc.kill(); time.sleep(1); continue
+            print(f'  Stage2 FAILED pos1 {pos1_0}->{pos1_1} pos2 {pos2_0}->{pos2_1}')
+            launch_proc.kill(); time.sleep(1); continue
+
         print('  Stage2 OK')
 
         # Stage 3: synced pressing and contact wrench event
