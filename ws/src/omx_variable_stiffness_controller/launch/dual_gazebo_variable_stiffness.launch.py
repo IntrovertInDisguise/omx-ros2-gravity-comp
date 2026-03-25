@@ -44,7 +44,7 @@ def generate_launch_description():
         SetEnvironmentVariable('GAZEBO_PLUGIN_PATH',
             '/opt/ros/humble/lib:/opt/ros/humble/lib/gazebo_ros'),
         SetEnvironmentVariable('GAZEBO_MODEL_PATH',
-            str(get_package_share_path('open_manipulator_x_description') / 'models')),
+            f"/usr/share/gazebo-11/models:{str(get_package_share_path('open_manipulator_x_description') / 'models')}") ,
         SetEnvironmentVariable('LD_LIBRARY_PATH',
             f"/opt/ros/humble/lib:{os.environ.get('LD_LIBRARY_PATH', '')}"),
     ]

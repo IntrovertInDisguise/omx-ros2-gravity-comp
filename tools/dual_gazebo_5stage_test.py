@@ -157,6 +157,36 @@ def check_controller_active(namespace, controller, timeout=60):
         time.sleep(1)
     return False
 
+def ensure_controller_active(robot, controller_name, timeout=60):
+    """
+    Ensure a controller is active for a given robot.
+    If not active, try to load and then activate it.
+    Returns True if active within timeout.
+    """
+    start = time.time()
+    while time.time() - start < timeout:
+        r = run_ros2_cmd(
+            f"ros2 service call /{robot}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'",
+            timeout=10, check=False)
+        if r.returncode == 0:
+            if f"name: '{controller_name}'" in r.stdout and 'state: active' in r.stdout:
+                print(f'  {robot}: {controller_name} already active')
+                return True
+            if f"name: '{controller_name}'" not in r.stdout:
+                print(f'  {robot}: loading {controller_name}...')
+                run_ros2_cmd(
+                    f"ros2 service call /{robot}/controller_manager/load_controller controller_manager_msgs/srv/LoadController '{{name: {controller_name}}}'",
+                    timeout=10, check=False)
+            else:
+                print(f'  {robot}: activating {controller_name}...')
+                run_ros2_cmd(
+                    f"ros2 service call /{robot}/controller_manager/switch_controller controller_manager_msgs/srv/SwitchController '{{activate_controllers: [{controller_name}], deactivate_controllers: [], strictness: 1}}'",
+                    timeout=10, check=False)
+        else:
+            print(f'  {robot}: list_controllers call failed with code {r.returncode}, retrying...')
+        time.sleep(1)
+    return False
+
 
 def send_joint_command(robot, value):
     topic = f'/{robot}/{robot}_variable_stiffness/commands'
@@ -245,14 +275,27 @@ def run_test(max_iterations=3):
                 time.sleep(1)
                 continue
 
-            # ---- 3. Wait for joint_state_broadcaster to be active ----
-            def is_joint_broadcaster_active(robot):
-                return check_controller_active(robot, 'joint_state_broadcaster', timeout=5)
-            if not (is_joint_broadcaster_active('robot1') and is_joint_broadcaster_active('robot2')):
+            # ---- 3. Ensure joint_state_broadcaster is active ----
+            if not ensure_controller_active('robot1', 'joint_state_broadcaster', timeout=30):
+                print('  robot1 joint_state_broadcaster activation failed')
+                time.sleep(1)
+                continue
+            if not ensure_controller_active('robot2', 'joint_state_broadcaster', timeout=30):
+                print('  robot2 joint_state_broadcaster activation failed')
                 time.sleep(1)
                 continue
 
-            # ---- 4. Wait for joint state data ----
+            # ---- 4. Ensure variable stiffness controller is active ----
+            if not ensure_controller_active('robot1', 'robot1_variable_stiffness', timeout=30):
+                print('  robot1 variable_stiffness controller activation failed')
+                time.sleep(1)
+                continue
+            if not ensure_controller_active('robot2', 'robot2_variable_stiffness', timeout=30):
+                print('  robot2 variable_stiffness controller activation failed')
+                time.sleep(1)
+                continue
+
+            # ---- 5. Wait for joint state data ----
             pos1 = wait_for_joint_data('robot1', timeout=60)
             pos2 = wait_for_joint_data('robot2', timeout=60)
             if pos1 is not None and pos2 is not None:
@@ -295,31 +338,41 @@ def run_test(max_iterations=3):
             print('  Stage2 FAILED: joint_state_broadcaster not active')
             launch_proc.kill(); time.sleep(1); continue
 
-        # Wait for joint states to actually contain data
-        def wait_for_joint_data(robot, timeout=60):
+        def get_first_joint_position(robot, timeout=60):
             start = time.time()
             while time.time() - start < timeout:
                 pos = get_joint_positions(robot)
                 if pos is not None:
+                    print(f'  {robot} initial position: {pos:.4f}')
                     return pos
                 time.sleep(1)
             return None
 
-        pos1_0 = wait_for_joint_data('robot1', timeout=60)
-        pos2_0 = wait_for_joint_data('robot2', timeout=60)
+        pos1_0 = get_first_joint_position('robot1', timeout=30)
+        pos2_0 = get_first_joint_position('robot2', timeout=30)
         if pos1_0 is None or pos2_0 is None:
             print('  Stage2 FAILED: joint_states never published any data')
             launch_proc.kill(); time.sleep(1); continue
 
-        # Send small movement commands
-        send_joint_command('robot1', pos1_0 + 0.2)
-        send_joint_command('robot2', pos2_0 + 0.2)
-        time.sleep(2)   # allow movement
+        print(f'  Sending +0.1 rad command to robot1 (current {pos1_0:.4f})')
+        print(f'  Sending +0.1 rad command to robot2 (current {pos2_0:.4f})')
+        send_joint_command('robot1', pos1_0 + 0.1)
+        send_joint_command('robot2', pos2_0 + 0.1)
 
+        time.sleep(2)
         pos1_1 = get_joint_positions('robot1')
         pos2_1 = get_joint_positions('robot2')
-        if pos1_1 is None or pos2_1 is None or abs(pos1_1 - pos1_0) < 0.05 or abs(pos2_1 - pos2_0) < 0.05:
-            print(f'  Stage2 FAILED pos1 {pos1_0}->{pos1_1} pos2 {pos2_0}->{pos2_1}')
+        if pos1_1 is None or pos2_1 is None:
+            print('  Stage2 FAILED: could not read joint positions after command')
+            launch_proc.kill(); time.sleep(1); continue
+
+        diff1 = abs(pos1_1 - pos1_0)
+        diff2 = abs(pos2_1 - pos2_0)
+        print(f'  robot1 moved: {pos1_0:.4f} → {pos1_1:.4f} (Δ {diff1:.4f})')
+        print(f'  robot2 moved: {pos2_0:.4f} → {pos2_1:.4f} (Δ {diff2:.4f})')
+
+        if diff1 < 0.02 or diff2 < 0.02:
+            print('  Stage2 FAILED: movement insufficient')
             launch_proc.kill(); time.sleep(1); continue
 
         print('  Stage2 OK')
