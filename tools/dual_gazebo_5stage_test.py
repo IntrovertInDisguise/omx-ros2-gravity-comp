@@ -29,6 +29,7 @@ def run_cmd(cmd, timeout=20, check=True):
 
 
 _ROS_ENV = None
+_ROS2_DAEMON_READY = False
 
 def get_ros_env():
     global _ROS_ENV
@@ -43,10 +44,46 @@ def get_ros_env():
                 env[k] = v
         # Keep system env to avoid losing PATH etc
         env.update(os.environ)
+
+        env.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+        env.setdefault('SDL_AUDIODRIVER', 'dummy')
+        env.setdefault('GAZEBO_HEADLESS_RENDERING', '1')
+        env.setdefault('GAZEBO_MODEL_DATABASE_URI', '')
+        env.setdefault('GAZEBO_PLUGIN_PATH', '/opt/ros/humble/lib:/opt/ros/humble/lib/gazebo_ros')
+        env.setdefault('GAZEBO_MODEL_PATH', '/usr/share/gazebo-11/models:' + str(get_ros_model_path()))
+
         _ROS_ENV = env
     return _ROS_ENV
 
+
+def get_ros_model_path():
+    # prefer package model path for open_manipulator_x_description, else fallback to empty
+    try:
+        from ament_index_python.packages import get_package_share_path
+        return str(get_package_share_path('open_manipulator_x_description') / 'models')
+    except Exception:
+        return ''
+
+
+def ensure_ros2_daemon():
+    global _ROS2_DAEMON_READY
+    if _ROS2_DAEMON_READY:
+        return True
+
+    status = run_cmd('ros2 daemon status', timeout=10, check=False)
+    if status.returncode != 0 or 'running' not in status.stdout.lower():
+        print('ros2 daemon not running, starting...')
+        start = run_cmd('ros2 daemon start', timeout=10, check=False)
+        if start.returncode != 0:
+            print('Failed to start ros2 daemon:', start.stderr.strip())
+            return False
+
+    _ROS2_DAEMON_READY = True
+    return True
+
 def run_ros2_cmd(cmd, timeout=20, check=True):
+    if not ensure_ros2_daemon():
+        return subprocess.CompletedProcess(cmd, 1, stdout='', stderr='ros2 daemon unavailable')
     try:
         return subprocess.run(cmd, shell=True, timeout=timeout, check=check,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -160,31 +197,89 @@ def check_controller_active(namespace, controller, timeout=60):
 def ensure_controller_active(robot, controller_name, timeout=60):
     """
     Ensure a controller is active for a given robot.
-    If not active, try to load and then activate it.
-    Returns True if active within timeout.
+    If not active, load, configure, then activate it.
     """
     start = time.time()
     while time.time() - start < timeout:
         r = run_ros2_cmd(
             f"ros2 service call /{robot}/controller_manager/list_controllers controller_manager_msgs/srv/ListControllers '{{}}'",
             timeout=10, check=False)
-        if r.returncode == 0:
-            if f"name: '{controller_name}'" in r.stdout and 'state: active' in r.stdout:
-                print(f'  {robot}: {controller_name} already active')
-                return True
-            if f"name: '{controller_name}'" not in r.stdout:
-                print(f'  {robot}: loading {controller_name}...')
-                run_ros2_cmd(
+        print(f'  {robot}: list_controllers rc={r.returncode}')
+        if r.stdout:
+            print(f'  {robot}: list_controllers stdout:\n{r.stdout}')
+        if r.stderr:
+            print(f'  {robot}: list_controllers stderr:\n{r.stderr}')
+        if r.returncode != 0:
+            time.sleep(1)
+            continue
+
+        output = r.stdout
+        in_controller = False
+        lines = output.splitlines()
+
+        for i, line in enumerate(lines):
+            if f"name: '{controller_name}'" in line:
+                in_controller = True
+                state = None
+                for j in range(i, min(i + 10, len(lines))):
+                    if 'state:' in lines[j]:
+                        if "'" in lines[j]:
+                            state = lines[j].split("'")[1]
+                        else:
+                            state = lines[j].split(':', 1)[1].strip()
+                        break
+
+                if state == 'active':
+                    print(f'  {robot}: {controller_name} already active')
+                    return True
+
+                if state == 'unconfigured':
+                    print(f'  {robot}: {controller_name} is unconfigured, configuring...')
+                    run_ros2_cmd(
+                        f"ros2 service call /{robot}/controller_manager/configure_controller controller_manager_msgs/srv/ConfigureController '{{name: {controller_name}}}'",
+                        timeout=10, check=False)
+                    time.sleep(1)
+                    run_ros2_cmd(
+                        f"ros2 service call /{robot}/controller_manager/switch_controller controller_manager_msgs/srv/SwitchController '{{activate_controllers: [\"{controller_name}\"], deactivate_controllers: [], strictness: 1}}'",
+                        timeout=10, check=False)
+                    time.sleep(1)
+                    break
+
+                if state == 'inactive':
+                    print(f'  {robot}: {controller_name} is inactive, activating...')
+                    run_ros2_cmd(
+                        f"ros2 service call /{robot}/controller_manager/switch_controller controller_manager_msgs/srv/SwitchController '{{activate_controllers: [\"{controller_name}\"], deactivate_controllers: [], strictness: 1}}'",
+                        timeout=10, check=False)
+                    time.sleep(1)
+                    break
+
+                if state is None:
+                    print(f'  {robot}: {controller_name} has no state, attempting configure/activate...')
+                    run_ros2_cmd(
+                        f"ros2 service call /{robot}/controller_manager/configure_controller controller_manager_msgs/srv/ConfigureController '{{name: {controller_name}}}'",
+                        timeout=10, check=False)
+                    time.sleep(1)
+                    run_ros2_cmd(
+                        f"ros2 service call /{robot}/controller_manager/switch_controller controller_manager_msgs/srv/SwitchController '{{activate_controllers: [\"{controller_name}\"], deactivate_controllers: [], strictness: 1}}'",
+                        timeout=10, check=False)
+                    time.sleep(1)
+                    break
+
+                break
+
+        if not in_controller:
+                print(f'  {robot}: {controller_name} not loaded, loading...')
+                load_resp = run_ros2_cmd(
                     f"ros2 service call /{robot}/controller_manager/load_controller controller_manager_msgs/srv/LoadController '{{name: {controller_name}}}'",
                     timeout=10, check=False)
-            else:
-                print(f'  {robot}: activating {controller_name}...')
-                run_ros2_cmd(
-                    f"ros2 service call /{robot}/controller_manager/switch_controller controller_manager_msgs/srv/SwitchController '{{activate_controllers: [{controller_name}], deactivate_controllers: [], strictness: 1}}'",
-                    timeout=10, check=False)
-        else:
-            print(f'  {robot}: list_controllers call failed with code {r.returncode}, retrying...')
+                print(f'  {robot}: load_controller rc={load_resp.returncode}')
+                if load_resp.stdout:
+                    print(f'  {robot}: load_controller stdout:\n{load_resp.stdout}')
+                if load_resp.stderr:
+                    print(f'  {robot}: load_controller stderr:\n{load_resp.stderr}')
+                time.sleep(1)
         time.sleep(1)
+
     return False
 
 
@@ -217,7 +312,19 @@ def run_test(max_iterations=3):
         subprocess.run('pkill -f dual_gazebo_variable_stiffness.launch.py || true', shell=True)
         subprocess.run('pkill -f gzserver || true', shell=True)
         subprocess.run('pkill -f gzclient || true', shell=True)
-        time.sleep(2)
+        # Force-kill any remaining gzserver/gzclient (e.g., zombies)
+        subprocess.run('pkill -9 -f gzserver || true', shell=True)
+        subprocess.run('pkill -9 -f gzclient || true', shell=True)
+        # Allow the OS to release the port (11345)
+        time.sleep(1)
+        # Also kill any stray spawn_entity processes
+        subprocess.run('pkill -f spawn_entity.py || true', shell=True)
+        # wait for cleanup to settle deterministically by polling
+        clean_start = time.time()
+        while time.time() - clean_start < 10:
+            if not gzserver_alive():
+                break
+            time.sleep(0.2)
 
         launch_proc = subprocess.Popen(
             'bash -lc "source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && '
@@ -230,37 +337,27 @@ def run_test(max_iterations=3):
         # ========== STAGE 1: Spawn verification ==========
         print('Stage 1: checking robot1/robot2/joint_states and box in world')
         stage1_ok = False
+
+        if not wait_for_topic('/gazebo/model_states', timeout=120):
+            print('Stage1 FAILED: /gazebo/model_states not available')
+            launch_proc.kill()
+            time.sleep(1)
+            continue
+
         t0 = time.time()
-        # Allow time for launch to start Gazebo and spawn scripts
-        time.sleep(5)
         while time.time() - t0 < 300:  # longer overall timeout
             if not gzserver_alive():
                 print('  gzserver died during stage1')
                 break
 
-            # ---- 1. Check model list via /get_model_list or /gazebo/model_states ----
+            # ---- 1. Check model list via /gazebo/model_states ----
             models_ok = False
-            use_model_states_fallback = False
-
-            if wait_for_service('/get_model_list', timeout=2):
-                models = get_model_list()
-                print(f'  get_model_list returned: {models}')
-                if 'robot1' in models and 'robot2' in models and 'opposing_push_box' in models:
+            if wait_for_topic('/gazebo/model_states', timeout=2):
+                model_states = get_model_states()
+                print(f'  /gazebo/model_states payload contains robot1: {"robot1" in model_states}, robot2: {"robot2" in model_states}, box: {"opposing_push_box" in model_states}')
+                if 'robot1' in model_states and 'robot2' in model_states and 'opposing_push_box' in model_states:
                     models_ok = True
-                    print('  Models present in /get_model_list')
-                else:
-                    use_model_states_fallback = True
-            else:
-                print('  /get_model_list service not available yet')
-                use_model_states_fallback = True
-
-            if use_model_states_fallback:
-                if wait_for_topic('/gazebo/model_states', timeout=2):
-                    model_states = get_model_states()
-                    print(f'  /gazebo/model_states payload contains robot1: {"robot1" in model_states}, robot2: {"robot2" in model_states}, box: {"opposing_push_box" in model_states}')
-                    if 'robot1' in model_states and 'robot2' in model_states and 'opposing_push_box' in model_states:
-                        models_ok = True
-                        print('  Models present in /gazebo/model_states (fallback)')
+                    print('  Models present in /gazebo/model_states')
 
             if not models_ok:
                 time.sleep(1)
@@ -307,6 +404,9 @@ def run_test(max_iterations=3):
         if not stage1_ok:
             print('Stage1 FAILED')
             launch_proc.kill()
+            subprocess.run('pkill -9 -f gzserver || true', shell=True)
+            subprocess.run('pkill -9 -f gzclient || true', shell=True)
+            subprocess.run('pkill -f spawn_entity.py || true', shell=True)
             time.sleep(1)
             continue
 
@@ -359,9 +459,21 @@ def run_test(max_iterations=3):
         send_joint_command('robot1', pos1_0 + 0.1)
         send_joint_command('robot2', pos2_0 + 0.1)
 
-        time.sleep(2)
-        pos1_1 = get_joint_positions('robot1')
-        pos2_1 = get_joint_positions('robot2')
+        # Wait for motion update in a deterministic polling loop
+        target1 = pos1_0 + 0.05
+        target2 = pos2_0 + 0.05
+        t_start = time.time()
+        pos1_1 = pos2_1 = None
+        while time.time() - t_start < 20:
+            pos1_1 = get_joint_positions('robot1')
+            pos2_1 = get_joint_positions('robot2')
+            if pos1_1 is not None and pos2_1 is not None and (abs(pos1_1 - pos1_0) > 0.02 and abs(pos2_1 - pos2_0) > 0.02):
+                break
+            time.sleep(0.5)
+
+        if pos1_1 is None or pos2_1 is None:
+            print('  Stage2 FAILED: could not read joint positions after command')
+            launch_proc.kill(); time.sleep(1); continue
         if pos1_1 is None or pos2_1 is None:
             print('  Stage2 FAILED: could not read joint positions after command')
             launch_proc.kill(); time.sleep(1); continue

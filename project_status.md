@@ -1,5 +1,19 @@
 (Entry added automatically by session tooling.)
 
+## Update (2026-03-25 — Root cause fixed + controller configure path added + debug logging)
+
+- **Action:** Resolved gzserver port collision with aggressive cleanup; added controller config flow and debug logging; validated stage progression.
+- **What changed:**
+  - `tools/dual_gazebo_5stage_test.py`: added detailed `list_controllers` and `load_controller` output prints in `ensure_controller_active()` for realtime debug.
+  - `tools/dual_gazebo_5stage_test.py`:
+    - added `pkill -9 -f gzserver` / `pkill -9 -f gzclient` and `time.sleep(1)` in pre-launch cleanup
+    - added `pkill -f spawn_entity.py` for cleanup
+    - upgraded `ensure_controller_active()` with `load_controller`, `configure_controller`, `switch_controller` state handling for `unconfigured`, `inactive`, and missing controller states
+    - fixed indentation and removed previous leftover branch artifact
+  - `ws/src/omx_variable_stiffness_controller/scripts/wait_and_spawn.sh`:
+    - now waits for `/spawn_entity` or `/gazebo/spawn_entity` availability after `/gazebo/model_states`
+- **Result:** Gazebo startup path no longer fails with port collision; Stage 1 reaches model presence checks (robot1/robot2/box). Next blocker is `joint_state_broadcaster` not yet visible in list_controllers, now in debugging.
+
 ## Update (2026-03-24 — Dual Gazebo 5-stage harness full end-to-end run attempt)
 
 - **Action:** Extended 5-stage harness with robust service/topic wait loops and started one full test run to confirm end-to-end behavior.
