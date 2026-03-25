@@ -2,6 +2,70 @@
 
 > Date: 2026-03-24
 
+## New 2026-03-25 takeover summary for next LLM session
+
+### Session context
+- Branch: `unstable_v2`.
+- Focus areas: dual Gazebo 5-stage harness (`tools/dual_gazebo_5stage_test.py`), launch orchestration (`dual_gazebo_variable_stiffness.launch.py`), and spawn gating `wait_and_spawn.sh`.
+- Environment: ROS2 Humble / Gazebo11 in container, with `GAZEBO_MODEL_PATH`, `GAZEBO_PLUGIN_PATH`, headless config (`LIBGL_ALWAYS_SOFTWARE=1`, `SDL_AUDIODRIVER=dummy`).
+- User request path:
+  1. Remove flaky sleeps and stabilize startup.
+  2. Make /gazebo/model_states and /spawn_entity gating deterministic.
+  3. Fix gzserver port conflict (exit 255 -> stale prior gzserver process).
+  4. Ensure joint_state_broadcaster+variable_stiffness controllers are loaded / configured / active.
+
+### Session rules (for all handover runs)
+1. Always source ROS2 and workspace before `ros2` commands:
+   - `source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash`
+2. Use non-sleep gating where possible (topic/service loops + `wait_for_service`/`wait_for_topic`).
+3. If `gzserver` fails with port error, kill all gzserver, gzclient, spawn_entity and sleep 1s for port release before restart.
+4. When you need to inspect state, use `ros2 service call /robot1/controller_manager/list_controllers ...` and evaluate response lines exactly.
+5. Log all debug-data from `ensure_controller_active` and `wait_and_spawn` for handoff.
+
+### Critical files changed in this session
+- `tools/dual_gazebo_5stage_test.py`:
+  - Cached ROS env loading, robust cleanup, controller self-heal (load/configure/switch), debug print statements.
+- `ws/src/omx_variable_stiffness_controller/scripts/wait_and_spawn.sh`:
+  - Wait for either `/spawn_entity` or `/gazebo/spawn_entity` after `/gazebo/model_states`.
+- `ws/src/omx_variable_stiffness_controller/launch/dual_gazebo_variable_stiffness.launch.py`:
+  - Gazebo env vars, timer chain for robot1/robot2 spawn + controllers.
+- `project_status.md`:
+  - Added detailed timeline and status notes.
+
+### Existing skills to use (precedence)
+- `document-and-gitpush`: already used for changelog + commit push
+- `agent-customization`: not required for current fix (project code logic only)
+- `summarize-github-issue-pr-notification`: can be used if PR description needed.
+- `suggest-fix-issue`: not required but helpful for pinpointing final controller issue.
+
+### Current state snapshot
+- Condition resolved: `gzserver` port collision eliminated by `pkill -9` and 1s delay.
+- Condition in progress: Stage1 loop can reach `robot1/robot2/box` model states, but controller remains stuck as "joint_state_broadcaster not loaded" and fails to activate.
+- Root pending: `controller_manager` may not list controller due scheduler timing or naming conventions.
+
+### Immediate next action (handoff to LLM)
+1. Add/confirm debug print in `ensure_controller_active` (done).
+2. Run one safe test `python3 tools/dual_gazebo_5stage_test.py --max-iterations 1`.
+3. Copy output from `list_controllers` and `load/controller/configure/switch` calls.
+4. Update the code path to handle this case: if controller not in list at all, do `load_controller`, then `wait_for_state` check, then `configure`, then `switch`, as the rational state machine.
+
+---
+
+## Full changelog / to-dos for next session
+
+1. Persist `tools/dual_gazebo_5stage_test.py` changes to `unstable_v2` (done, pushed). 
+2. Ensure the spawn process variant path is stable for `/spawn_entity` name (done in `wait_and_spawn.sh`).
+3. Validate `joint_state_broadcaster` is discovered and not only `robot1/joint_state_broadcaster` using exact `list_controllers` response.
+4. Add rescue step in harness: if `list_controllers` contains `robot1_joint_state_broadcaster` or `joint_state_broadcaster` names variant, use that exact name in all function calls.
+5. After Stage1 passes for one iteration, run full test and record Stage2-Stage5 results.
+
+---
+
+### Work completed end-to-end in this session
+- `git add` + `commit` + `push` completed for final fix (branch `unstable_v2`).
+- `project_status.md` and `implementation.md` updated.
+- Completed instruction set for next LLM takeover.
+
 ---
 
 ## Issue 1: LivePlot GUI window doesn't appear alongside Gazebo GUI
