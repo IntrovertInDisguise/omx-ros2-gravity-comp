@@ -1306,3 +1306,19 @@ and end `[0.14, 0.02, 0.10]` both having x>0.
 - Added fallback in check_controller_active for controller-manager service waits + LLM diagnostic dump
 - Added plugin path detection for workspace-installed gazebo_ros2_control library
 - Improved Gazebo stage2 `/gazebo/model_states` wait from 30 to 60 sec
+
+## Update (2026-03-27 — Dual Gazebo root-cause, harness fixes, sampling validation)
+
+- **Action:** Captured session state: diagnosed and fixed plugin node-identity collisions, hardened the 5-stage harness, and validated contact wrench publishing with a focused sampler.
+- **What changed:**
+  - `ws/src/open_manipulator/open_manipulator_x_description/urdf/open_manipulator_x_robot.urdf.xacro`: added per-robot plugin `name` and explicit `<node_name>` to ensure unique `gazebo_ros2_control` node identity when multiple plugins run inside one `gzserver` process.
+  - `tools/dual_gazebo_5stage_test.py`: initialized waypoint fallback variables, added `DGV_GUI` override, and rewrote `get_contact_wrench()` to sample multiple messages and parse YAML/list/dict formats robustly; tightened Stage 3 contact check to use force-norm > 0.1.
+  - `tools/sample_wrench.py`: new helper to publish waypoint presses and sample `/.../contact_wrench` peaks for focused validation.
+- **Results:**
+  - Per-robot plugin nodes now appear with distinct names in logs (see `/tmp/dual_gazebo_*_launch.log`).
+  - Focused sampling run measured contact peak forces ≈ 0.525–0.527 N for both robots, confirming physical contact and that earlier Stage-5 failures were parsing/measurement related.
+  - Full end-to-end headless harness run is pending due to intermittent container process kills (exit 137) during heavy simulation runs — environment-level mitigation required before repeated full runs.
+- **Next steps:**
+  - Retry a clean headless full harness run from a fresh container state once resources are ensured (avoid parallel GUI runs).
+  - Add a small CI-friendly smoke test invoking `tools/sample_wrench.py` against a preserved headless run to validate Stage 5 without repeating the full harness.
+
