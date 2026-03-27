@@ -82,8 +82,14 @@ python3 /workspaces/omx_ros2/tools/live_plot_logs.py \
   --screenshot-dir /tmp/live_plot_screenshots
 ```
 
----
  and configurations for running **two independent Open Manipulator X robots** with:
+
+## Project Status Update (2026-03-27)
+
+See the latest session summary and recent fixes in [project_status.md](project_status.md#L1). Key highlights:
+- Fixed dual-Gazebo plugin node-identity collisions that caused controller namespace cross-binding.
+- Hardened the dual Gazebo 5-stage harness and improved wrench parsing; a smoke test helper is available at [tools/sample_wrench.py](tools/sample_wrench.py#L1).
+
 - **Gravity Compensation**: Passive gravity compensation for compliant manipulation
 - **Variable Cartesian Impedance Control**: Time-varying stiffness/damping profiles for precise force control
 
@@ -1467,9 +1473,9 @@ robot1/controller_manager:
 
 robot1/gravity_comp_controller:
   ros__parameters:
-    joints: [robot1_joint1, robot1_joint2, robot1_joint3, robot1_joint4]
+    joints: [joint1, joint2, joint3, joint4]
     root_link: robot1_world
-    tip_link: robot1_link5
+    tip_link: end_effector_link
     torque_scale: 1.0
     robot_description_node: /robot1/controller_manager
 ```
