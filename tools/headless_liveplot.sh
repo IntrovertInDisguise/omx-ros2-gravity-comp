@@ -2,7 +2,7 @@
 # Helper: run dual Gazebo headless and live-plot to PNG screenshots
 # Usage: ./tools/headless_liveplot.sh [--screenshot-dir /tmp/live_plot] [--controller variable_stiffness] [--ns1 /robot1/robot1_variable_stiffness] [--ns2 /robot2/robot2_variable_stiffness]
 
-set -euo pipefail
+set -eo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SCREENSHOT_DIR=/tmp/live_plot_screenshots
@@ -23,11 +23,13 @@ done
 
 echo "Starting headless Gazebo + live-plot (screenshots -> $SCREENSHOT_DIR)"
 
-# Ensure ROS env is sourced
-source /opt/ros/humble/setup.bash
+# Ensure ROS env is sourced (allow setup scripts to reference unset vars)
+set +u
+source /opt/ros/humble/setup.bash || true
 if [ -f /workspaces/omx_ros2/ws/install/setup.bash ]; then
-  source /workspaces/omx_ros2/ws/install/setup.bash
+  source /workspaces/omx_ros2/ws/install/setup.bash || true
 fi
+set -u
 
 # Environment for headless Gazebo
 export LIBGL_ALWAYS_SOFTWARE=1
