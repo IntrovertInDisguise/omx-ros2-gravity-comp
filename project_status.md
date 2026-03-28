@@ -1,5 +1,13 @@
 (Entry added automatically by session tooling.)
 
+## Update (2026-03-28 — SIGKILL vs OOM diagnostic note)
+
+- **Action:** Recorded findings from headless Gazebo / `gzserver` investigation.
+- **Summary:** Repeated `gzserver` exit code `137` was observed during combined-plugin tests. Kernel logs show no `OOM`, `out of memory`, or `Killed process` messages correlating with those events, and system memory remained healthy after cleanup. `libgazebo_ros_state.so` loads but does not create a ROS node by itself; loading `libgazebo_ros_init.so + libgazebo_ros_node.so` results in a visible `/gazebo` node.
+- **Interpretation / Warning:** Treat `exit 137` here as a host- or supervisor-initiated `SIGKILL` (outside the kernel OOM path) rather than an in-guest kernel OOM. For troubleshooting, prefer restarting the container/host and running a single combined-plugin headless test with minimal host load rather than repeatedly chasing in-container memory artifacts.
+- **Actionable guidance:** Do not escalate this as an in-guest OOM; instead, run the decisive combined-plugin test on a clean host/devcontainer (reduce VS Code/extensions memory pressure), capture `ros2 node list`, `ros2 topic list | grep gazebo`, and `tail -n 200 /tmp/gzserver_world_init_node_state.log` for a single run, and collect host-level logs if `137` recurs.
+
+
 ## Update (2026-03-25 — Root cause fixed + controller configure path added + debug logging)
 
 - **Action:** Resolved gzserver port collision with aggressive cleanup; added controller config flow and debug logging; validated stage progression.
