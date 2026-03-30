@@ -232,6 +232,20 @@ logs/
 - We already modified `open_manipulator_x_robot.urdf.xacro` to use `robot_description` / `robot_state_publisher` (no namespace prefix) which is the documented pattern.
 - The failure is currently a **build/runtime environment** issue (missing Python/ROS packages in the container), not a URDF or namespace bug.
 
+---
+
+## Update (2026-03-30 — Stage1 readiness rule & devcontainer GUI forwarding)
+
+- **Action:** Replace fragile `/gazebo/model_states` topic gating with a service-based and process-alive readiness check in the test harness.
+- **What changed:** `tools/dual_gazebo_5stage_test.py` no longer requires `/gazebo/model_states` to be published. Stage1 now requires:
+  - `gzserver` process alive (launch process present), and
+  - `get_model_list()` to return `robot1`, `robot2`, and `opposing_push_box`, and
+  - controller-manager services `/robot1/controller_manager/list_controllers` and `/robot2/controller_manager/list_controllers` to be available.
+- **Rationale:** Some gazebo_ros plugin configurations (or container environments) create a `/gazebo` node without publishing `/gazebo/model_states`. The service-based check is more robust and preserves the existing `get_model_list()` contract.
+- **Devcontainer GUI:** `.devcontainer/devcontainer.json` was updated to forward WSLg and X11 bindings (`/mnt/wslg` and `/tmp/.X11-unix`) and export `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, and `PULSE_SERVER` into the container so `gzclient` can run from the devcontainer. This uses llvmpipe (software GL) in the devcontainer but is sufficient for visualization and debugging.
+
+**Result:** Headless validation and GUI validation both now work in the devcontainer. Keep heavy runs headless; use `gzclient` for inspection only.
+
 ## Update (2026-03-10 — Gazebo live plot stability)
 
 ### Completed Tests
