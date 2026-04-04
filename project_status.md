@@ -7,6 +7,29 @@
 - **Interpretation / Warning:** Treat `exit 137` here as a host- or supervisor-initiated `SIGKILL` (outside the kernel OOM path) rather than an in-guest kernel OOM. For troubleshooting, prefer restarting the container/host and running a single combined-plugin headless test with minimal host load rather than repeatedly chasing in-container memory artifacts.
 - **Actionable guidance:** Do not escalate this as an in-guest OOM; instead, run the decisive combined-plugin test on a clean host/devcontainer (reduce VS Code/extensions memory pressure), capture `ros2 node list`, `ros2 topic list | grep gazebo`, and `tail -n 200 /tmp/gzserver_world_init_node_state.log` for a single run, and collect host-level logs if `137` recurs.
 
+- **Runtime rule (enforced):** When launching `gzserver` for integrated tests, only load the minimal Gazebo ROS core plugins inside a single `gzserver` process: `libgazebo_ros_init.so` and `libgazebo_ros_factory.so`. Do NOT load `libgazebo_ros_force_system.so` (or similar gazebo_ros plugins) into the same gzserver instance; instead run separate gzserver instances per robot or spawn entities via `spawn_entity.py` to avoid shared ROS-context/plugin conflicts.
+
+Note: when the full `ros2 launch` orchestration flakes (container environment, plugin conflicts, or launch-driven gzserver crashes), the stable manual fallback is to start `gzserver` yourself with only the core plugins, then spawn entities and bring up controllers manually. This manual stable path is typically more robust for debugging and is what you should use when the full launch repeatedly fails.
+
+Manual stable path example (use when the full `ros2 launch` orchestration flakes):
+
+```bash
+# MANUAL STABLE PATH (explicit and reliable for debugging)
+# 1) Start a minimal gzserver with only the core gazebo_ros plugins
+gzserver -s libgazebo_ros_init.so -s libgazebo_ros_factory.so /path/to/world.world &
+
+# 2) Spawn robot entities manually (use the package/share URDF or pre-generated URDF files)
+ros2 run gazebo_ros spawn_entity.py -file /path/to/robot1.urdf -entity robot1 -x 0 -y 0 -z 0
+ros2 run gazebo_ros spawn_entity.py -file /path/to/robot2.urdf -entity robot2 -x 0 -y -0.5 -z 0
+
+# 3) Bring up controller_manager spawners for each robot (use the spawner helper so it retries)
+ros2 run controller_manager spawner joint_state_broadcaster --controller-manager /robot1/controller_manager --activate-as-group
+ros2 run controller_manager spawner joint_state_broadcaster --controller-manager /robot2/controller_manager --activate-as-group
+
+# The manual stable path separates simulation (gzserver) from the ROS orchestration
+# and is the recommended fallback when the full launch repeatedly fails in-container.
+```
+
 
 ## Update (2026-03-25 — Root cause fixed + controller configure path added + debug logging)
 

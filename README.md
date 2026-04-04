@@ -47,6 +47,17 @@ source /workspaces/omx_ros2/install/setup.bash
 ros2 launch <package> <launch_file>.launch.py enable_logger:=true enable_live_plot:=true [other_args]
 ```
 
+### One-line caution
+
+If you must run everything in a single one-liner (not recommended), make sure you source the system ROS and the workspace in the same shell invocation so the `ros2` command and workspace overlay are available. Example (explicit paths):
+
+```bash
+bash -lc "source /opt/ros/humble/setup.bash && source /workspaces/omx_ros2/ws/install/setup.bash && ros2 topic list"
+```
+
+Avoid spawning a fresh shell without sourcing these files first — `bash -lc` starts a clean shell and will not inherit your current sourced environment.
+
+
 ### Complete hardware launch commands (copy-paste ready)
 
 ```bash
@@ -81,6 +92,28 @@ python3 /workspaces/omx_ros2/tools/live_plot_logs.py \
   --namespace2 /robot2/robot2_variable_stiffness \
   --screenshot-dir /tmp/live_plot_screenshots
 ```
+
+### Strict hardware bringup sequence (recommended)
+
+Run these commands in the same shell (do NOT use a fresh `bash -lc` without sourcing):
+
+```bash
+source /opt/ros/humble/setup.bash
+source /workspaces/omx_ros2/ws/install/setup.bash
+
+# Start your dual-hardware bringup (replace with your canonical launch)
+ros2 launch omx_variable_stiffness_controller dual_hardware_variable_stiffness.launch.py \
+  enable_logger:=true enable_live_plot:=true
+
+# Verify both robots publish joint_states before running the harness
+ros2 topic echo --once /robot1/joint_states
+ros2 topic echo --once /robot2/joint_states
+
+# Only run the harness after both joint_states are present
+python3 tools/hardware_harness.py
+```
+
+If `/robot1/joint_states` and `/robot2/joint_states` are absent, do not debug the harness — the hardware bringup is not active.
 
  and configurations for running **two independent Open Manipulator X robots** with:
 
@@ -1283,6 +1316,23 @@ The auto-detection launch file will automatically detect if two robots are conne
 ```bash
 ros2 launch omx_dual_bringup auto_dual_gravity_comp.launch.py
 ```
+
+### Strict hardware bringup sequence for harness
+
+Before running the harness, ensure the hardware stack is up and publishing joint states for both robots. Follow this strict sequence:
+
+```bash
+source /opt/ros/humble/setup.bash
+source /workspaces/omx_ros2/ws/install/setup.bash
+
+ros2 launch <your_dual_hardware_launch> enable_logger:=true enable_live_plot:=true
+ros2 topic echo --once /robot1/joint_states
+ros2 topic echo --once /robot2/joint_states
+python3 tools/hardware_harness.py
+```
+
+If `/robot1/joint_states` and `/robot2/joint_states` are absent, do not debug the harness — hardware bringup is not active. Start the hardware launch and re-check joint_states first.
+
 
 ### Launch wrapper (build + source)
 
