@@ -35,8 +35,8 @@ def main():
     parser.add_argument('--x', type=float, default=0.2)
     parser.add_argument('--y', type=float, default=0.0)
     parser.add_argument('--z', type=float, default=0.15)
-    parser.add_argument('--sx', type=float, default=0.05)
-    parser.add_argument('--sy', type=float, default=0.05)
+    parser.add_argument('--sx', type=float, default=0.08)
+    parser.add_argument('--sy', type=float, default=0.08)
     parser.add_argument('--sz', type=float, default=0.05)
     args = parser.parse_args()
 

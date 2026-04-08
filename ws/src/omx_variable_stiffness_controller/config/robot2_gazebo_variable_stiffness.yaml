@@ -23,10 +23,10 @@
     use_sim_time: true
 
     joints:
-      - robot2_joint1
-      - robot2_joint2
-      - robot2_joint3
-      - robot2_joint4
+      - joint1
+      - joint2
+      - joint3
+      - joint4
 
     state_interfaces:
       - position
@@ -36,7 +36,7 @@
       - effort
 
     root_link: world
-    tip_link: robot2_end_effector_link
+    tip_link: end_effector_link
     robot_description_node: "/robot2/robot_state_publisher"
     torque_scale: 1.0
 

@@ -123,6 +123,10 @@ See the latest session summary and recent fixes in [project_status.md](project_s
 - Fixed dual-Gazebo plugin node-identity collisions that caused controller namespace cross-binding.
 - Hardened the dual Gazebo 5-stage harness and improved wrench parsing; a smoke test helper is available at [tools/sample_wrench.py](tools/sample_wrench.py#L1).
 
+- **Hardware harness test (2026-04-04):** `tools/hardware_harness.py` was executed on physical robots to validate liveness, idle, synchronous move, and hold stages. All stages passed; Stage 3 (synchronous move) showed a small timing offset between robots. See [project_status.md](project_status.md#L1) for full details and suggested mitigations (tune `publish_pose()` `dt`/`repeats` or publish identical header timestamps).
+
+A richer hardware harness (v2) that logs dual-robot snapshots and explicit sync metrics is available at `tools/hardware_harness_v2.py`. Logs are written by default to `/tmp/variable_stiffness_logs/` and are compatible with the repository's plotting helper `tools/plot_sync_metrics.py`.
+
 - **Gravity Compensation**: Passive gravity compensation for compliant manipulation
 - **Variable Cartesian Impedance Control**: Time-varying stiffness/damping profiles for precise force control
 

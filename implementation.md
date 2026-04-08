@@ -245,5 +245,5 @@ def publish_waypoint_pair(pub1, pub2, pose1, pose2, health1, health2, retries=3,
 ## Verification Plan
 
 1. Launch `dual_gazebo_variable_stiffness.launch.py gui:=true enable_live_plot:=true` → confirm matplotlib window appears
-2. Run [dual_gazebo_5stage_test.py](file:///home/vrcontrollers/omx_ros2_varstiff/omx-ros2-gravity-comp/tools/dual_gazebo_5stage_test.py) → confirm total time < 3 min
+2. Run [dual_gazebo_5stage_test.py](file:///home/vrcontrollers/omx_ros2_varstiff/omx-ros2-gravity-comp/tools/dual_gazebo_5stage_test.py) → confirm total time < 0.5 min
 3. Run both coordinator tools → confirm they still work after refactor

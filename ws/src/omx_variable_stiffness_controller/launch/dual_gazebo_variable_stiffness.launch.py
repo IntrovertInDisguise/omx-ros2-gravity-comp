@@ -24,14 +24,16 @@ def generate_launch_description():
 
     press_box = LaunchConfiguration('press_box')
     gui = LaunchConfiguration('gui')
-    robot1_press_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot1_box_press.yaml'])
-    robot2_press_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot2_box_press.yaml'])
+    robot1_press_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot1_gazebo_variable_stiffness.yaml'])
+    robot2_press_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot2_gazebo_variable_stiffness.yaml'])
     robot1_default_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot1_variable_stiffness.yaml'])
     robot2_default_yaml = PathJoinSubstitution([FindPackageShare('omx_variable_stiffness_controller'), 'config', 'robot2_variable_stiffness.yaml'])
 
     declare_press_box = DeclareLaunchArgument('press_box', default_value='true', description='Enable coordinated box press trajectory')
     declare_gui = DeclareLaunchArgument('gui', default_value='false', description='Run Gazebo client GUI')
     declare_live_plot = DeclareLaunchArgument('enable_live_plot', default_value='false', description='Start live plot process')
+    declare_enable_spawn = DeclareLaunchArgument('enable_spawn', default_value='true', description='Whether to spawn robots into Gazebo')
+    declare_enable_controllers = DeclareLaunchArgument('enable_controllers', default_value='false', description='Whether to load controllers after robots are spawned')
 
     # Environment variables for container stability
     enable_live_plot = LaunchConfiguration('enable_live_plot')
@@ -45,8 +47,10 @@ def generate_launch_description():
             '/opt/ros/humble/lib:/opt/ros/humble/lib/gazebo_ros'),
         SetEnvironmentVariable('GAZEBO_MODEL_PATH',
             f"/usr/share/gazebo-11/models:{str(get_package_share_path('open_manipulator_x_description') / 'models')}") ,
+        SetEnvironmentVariable('GAZEBO_RESOURCE_PATH',
+            '/usr/share/gazebo-11/models'),
         SetEnvironmentVariable('LD_LIBRARY_PATH',
-            f"/opt/ros/humble/lib:{os.environ.get('LD_LIBRARY_PATH', '')}"),
+            '/opt/ros/humble/lib:/workspaces/omx_ros2/ws/install/lib'),
     ]
 
     # URDF descriptions (xacro)
@@ -72,11 +76,12 @@ def generate_launch_description():
 
     # Gazebo server & client
     world_path = os.path.join(pkg_root, 'worlds', 'empty.world')
-    gazebo_server = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([FindPackageShare('gazebo_ros'), 'launch', 'gzserver.launch.py'])
-        ]),
-        launch_arguments={'world': world_path, 'verbose': 'false'}.items()
+    # Launch gzserver directly with only the stable core plugins to avoid
+    # loading additional gazebo_ros plugins that may create duplicate
+    # ROS node contexts inside a single gzserver process.
+    gazebo_server = ExecuteProcess(
+        cmd=['gzserver', '-s', 'libgazebo_ros_init.so', '-s', 'libgazebo_ros_factory.so', world_path],
+        output='screen'
     )
     gazebo_client = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
@@ -88,32 +93,35 @@ def generate_launch_description():
     # Spawn robots using wait_and_spawn.sh
     wait_and_spawn_script = os.path.join(pkg_root, 'scripts', 'wait_and_spawn.sh')
     spawn_robot1 = ExecuteProcess(
-        cmd=['bash', wait_and_spawn_script, 'robot1', '/gazebo/model_states', '120', '0.0', '0.4', '0.0', '-1.5708'],
-        output='screen'
+        cmd=['bash', wait_and_spawn_script, 'robot1', '/gazebo/model_states', '120', '0.0', '0.4', '0.0', '-1.5708', robot1_press_yaml],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_spawn'))
     )
     # Robot2 spawn is triggered after robot1 spawn finishes, using the same gazebo ready condition.
     spawn_robot2 = ExecuteProcess(
-        cmd=['bash', wait_and_spawn_script, 'robot2', '/gazebo/model_states', '120', '0.0', '-0.4', '0.0', '1.5708'],
-        output='screen'
+        cmd=['bash', wait_and_spawn_script, 'robot2', '/gazebo/model_states', '120', '0.0', '-0.4', '0.0', '1.5708', robot2_press_yaml],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_spawn'))
     )
 
     # Controller spawners
     load_jsb_r1 = Node(
         package='controller_manager', executable='spawner',
-        arguments=['joint_state_broadcaster', '--controller-manager', '/robot1/controller_manager',
+        arguments=['joint_state_broadcaster', '--controller-manager', '/robot1/controller_manager', '--namespace', '/robot1',
                    '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
-        output='screen'
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_controllers'))
     )
     load_vs_r1_default = Node(
         package='controller_manager', executable='spawner',
-        arguments=['robot1_variable_stiffness', '--controller-manager', '/robot1/controller_manager',
+        arguments=['robot1_variable_stiffness', '--controller-manager', '/robot1/controller_manager', '--namespace', '/robot1',
                    '--param-file', robot1_default_yaml, '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
         output='screen',
         condition=UnlessCondition(press_box)
     )
     load_vs_r1_press = Node(
         package='controller_manager', executable='spawner',
-        arguments=['robot1_variable_stiffness', '--controller-manager', '/robot1/controller_manager',
+        arguments=['robot1_variable_stiffness', '--controller-manager', '/robot1/controller_manager', '--namespace', '/robot1',
                    '--param-file', robot1_press_yaml, '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
         output='screen',
         condition=IfCondition(press_box)
@@ -121,20 +129,21 @@ def generate_launch_description():
 
     load_jsb_r2 = Node(
         package='controller_manager', executable='spawner',
-        arguments=['joint_state_broadcaster', '--controller-manager', '/robot2/controller_manager',
+        arguments=['joint_state_broadcaster', '--controller-manager', '/robot2/controller_manager', '--namespace', '/robot2',
                    '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
-        output='screen'
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_controllers'))
     )
     load_vs_r2_default = Node(
         package='controller_manager', executable='spawner',
-        arguments=['robot2_variable_stiffness', '--controller-manager', '/robot2/controller_manager',
+        arguments=['robot2_variable_stiffness', '--controller-manager', '/robot2/controller_manager', '--namespace', '/robot2',
                    '--param-file', robot2_default_yaml, '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
         output='screen',
         condition=UnlessCondition(press_box)
     )
     load_vs_r2_press = Node(
         package='controller_manager', executable='spawner',
-        arguments=['robot2_variable_stiffness', '--controller-manager', '/robot2/controller_manager',
+        arguments=['robot2_variable_stiffness', '--controller-manager', '/robot2/controller_manager', '--namespace', '/robot2',
                    '--param-file', robot2_press_yaml, '--controller-manager-timeout', '120', '--service-call-timeout', '120'],
         output='screen',
         condition=IfCondition(press_box)
@@ -144,13 +153,13 @@ def generate_launch_description():
     chain_r1 = RegisterEventHandler(
         OnProcessExit(target_action=spawn_robot1, on_exit=[
             spawn_robot2,
-            TimerAction(period=60.0, actions=[load_jsb_r1, load_vs_r1_default, load_vs_r1_press])
+            TimerAction(period=1.5, actions=[load_jsb_r1, load_vs_r1_default, load_vs_r1_press])
         ])
     )
     # Chain robot2 controllers after robot2 spawn
     chain_r2 = RegisterEventHandler(
         OnProcessExit(target_action=spawn_robot2, on_exit=[
-            TimerAction(period=60.0, actions=[load_jsb_r2, load_vs_r2_default, load_vs_r2_press])
+            TimerAction(period=1.5, actions=[load_jsb_r2, load_vs_r2_default, load_vs_r2_press])
         ])
     )
 
@@ -172,6 +181,8 @@ def generate_launch_description():
         declare_press_box,
         declare_gui,
         declare_live_plot,
+        declare_enable_spawn,
+        declare_enable_controllers,
         LogInfo(msg='[dual_gazebo_vs] Starting with container‑safe environment'),
         *env_actions,
         robot1_state_publisher,

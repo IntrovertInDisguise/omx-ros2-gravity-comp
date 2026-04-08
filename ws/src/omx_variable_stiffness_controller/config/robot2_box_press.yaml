@@ -1,0 +1,41 @@
+# Robot2 press-from-right configuration (same layout as robot2_gazebo_variable_stiffness)
+/robot2/controller_manager:
+  ros__parameters:
+    use_sim_time: true
+    update_rate: 100
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    robot2_variable_stiffness:
+      type: omx_variable_stiffness_controller/OmxVariableStiffnessController
+
+/robot2/robot2_variable_stiffness:
+  ros__parameters:
+    use_sim_time: true
+
+    joints:
+      - robot2_joint1
+      - robot2_joint2
+      - robot2_joint3
+      - robot2_joint4
+
+    state_interfaces:
+      - position
+      - velocity
+      - effort
+    command_interfaces:
+      - effort
+
+    root_link: world
+    tip_link: robot2_end_effector_link
+    robot_description_node: "/robot2/robot_state_publisher"
+    torque_scale: 1.0
+
+    # press trajectory
+    start_position: [0.32, -0.02, 0.15]
+    end_position: [0.19, -0.02, 0.15]
+    target_orientation: [0.0, -0.5, 0.0]
+    homing_duration: 8.0
+    move_duration: 15.0
+    wait_duration: 3.0

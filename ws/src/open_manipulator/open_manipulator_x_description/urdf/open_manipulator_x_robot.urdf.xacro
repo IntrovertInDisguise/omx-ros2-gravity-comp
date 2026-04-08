@@ -12,7 +12,7 @@
   <xacro:arg name="port_name" default="/dev/ttyUSB0" />
   <xacro:arg name="controller_config"
              default="$(find open_manipulator_x_bringup)/config/gazebo_controller_manager.yaml" />
-  <xacro:arg name="robot_namespace" default="/omx" />
+  <xacro:arg name="robot_namespace" default="omx" />
 
   <!-- ======================== -->
   <!-- Includes -->
@@ -34,15 +34,15 @@
   <!-- Robot Model -->
   <!-- ======================== -->
 
-  <xacro:open_manipulator_x prefix="$(arg prefix)" />
+  <xacro:open_manipulator_x prefix="" />
 
   <!-- Gazebo-specific elements (collision tweaks, friction, etc.) -->
-  <xacro:open_manipulator_x_gazebo prefix="$(arg prefix)" />
+  <xacro:open_manipulator_x_gazebo prefix="" />
 
   <!-- ros2_control hardware interface -->
   <xacro:open_manipulator_x_system
     name="OpenManipulatorXSystem"
-    prefix="$(arg prefix)"
+    prefix=""
     use_sim="$(arg use_sim)"
     use_fake_hardware="$(arg use_fake_hardware)"
     fake_sensor_commands="$(arg fake_sensor_commands)"
@@ -61,14 +61,16 @@
   -->
   <xacro:if value="$(arg use_sim)">
   <gazebo>
-    <plugin name="$(arg prefix)gazebo_ros2_control"
+    <plugin name="gazebo_ros2_control_$(arg robot_namespace)"
             filename="libgazebo_ros2_control.so">
       <ros>
-        <namespace>$(arg robot_namespace)</namespace>
+        <namespace>/$(arg robot_namespace)</namespace>
+        <node_name>gazebo_ros2_control_$(arg robot_namespace)</node_name>
+        <remapping>__ns:=/$(arg robot_namespace)</remapping>
       </ros>
       <!-- Explicitly tell gazebo_ros2_control which robot_description parameter to use -->
       <robot_param>robot_description</robot_param>
-      <robot_param_node>robot_state_publisher</robot_param_node>
+      <robot_param_node>/$(arg robot_namespace)/robot_state_publisher</robot_param_node>
       <parameters>$(arg controller_config)</parameters>
     </plugin>
   </gazebo>
@@ -79,10 +81,10 @@
 
   <link name="world"/>
 
-  <joint name="$(arg prefix)world_fixed" type="fixed">
+  <joint name="world_fixed" type="fixed">
     <origin xyz="0 0 0" rpy="0 0 0"/>
     <parent link="world"/>
-    <child link="$(arg prefix)link1"/>
+    <child link="link1"/>
   </joint>
 
 </robot>

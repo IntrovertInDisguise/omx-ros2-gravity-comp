@@ -23,10 +23,10 @@
 /robot1/robot1_variable_stiffness:
   ros__parameters:
     joints:
-      - robot1_joint1
-      - robot1_joint2
-      - robot1_joint3
-      - robot1_joint4
+      - joint1
+      - joint2
+      - joint3
+      - joint4
 
     state_interfaces:
       - position
@@ -36,7 +36,7 @@
       - effort
 
     root_link: world
-    tip_link: robot1_end_effector_link
+    tip_link: end_effector_link
     robot_description_node: "/robot1/robot_state_publisher"
     torque_scale: 180.0
 

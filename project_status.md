@@ -1,5 +1,17 @@
 (Entry added automatically by session tooling.)
 
+## Update (2026-04-04 — Hardware harness test: passed; minor sync offset)
+
+- **Action:** Ran `tools/hardware_harness.py` on physical robots to validate liveness, idle, synchronous move, and hold stages.
+- **Summary:** All stages passed on hardware. Stage 3 (synchronous move) completed successfully but the two robots show a slight timing offset causing minor desynchronization during the synchronous trajectory; there were no safety trips or controller faults observed.
+- **Details / Guidance:** To improve synchronization, consider one or more of the following:
+  - Increase `repeats` or the `dt` parameter in `publish_pose()` to allow more settling time between publishes.
+  - Add an explicit `spin_for()` or a short `wait_for_joint_state` after publishing to both robots so their measurements align more closely.
+  - Publish poses with identical header timestamps (if supported by the controllers) to enable time-based interpolation.
+- **Files:** `tools/hardware_harness.py`
+- **Next steps:** If you want, I can tune `dt`/`repeats` and re-run the hardware test, or add CLI options to `tools/hardware_harness.py` for easier tuning and repeatable runs.
+
+
 ## Update (2026-03-28 — SIGKILL vs OOM diagnostic note)
 
 - **Action:** Recorded findings from headless Gazebo / `gzserver` investigation.
