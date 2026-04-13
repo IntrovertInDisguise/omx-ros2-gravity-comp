@@ -36,6 +36,18 @@ ros2 launch omx_variable_stiffness_controller dual_gazebo_variable_stiffness.lau
 | 2 | **Always include `enable_logger:=true`** | Hardware runs must be logged. Logger and plotter are independent — logger costs nothing and every run may be the only captured data. |
 | 3 | **Always include `enable_live_plot:=true`** | Visual feedback is required during any hardware session to detect anomalies in real time. |
 
+## Python developer environment (reproducible)
+
+Use the provided virtualenv setup script to create a reproducible development Python environment and install dev dependencies:
+
+```bash
+cd /workspaces/omx_ros2
+./scripts/setup_python_env.sh
+source .venv/bin/activate
+```
+
+The script installs packages from `requirements-dev.txt` so CI and local dev are consistent. Do not install project dependencies directly into ephemeral system environments; update `requirements-dev.txt` and re-run the script instead.
+
 ### Canonical source + launch pattern
 
 ```bash
@@ -111,9 +123,19 @@ ros2 topic echo --once /robot2/joint_states
 
 # Only run the harness after both joint_states are present
 python3 tools/hardware_harness.py
+
+# For hardware_harness_v2, also verify the desired-pose and contact topics
+ros2 topic echo --once /robot1/robot1_variable_stiffness/cartesian_pose_desired
+ros2 topic echo --once /robot2/robot2_variable_stiffness/cartesian_pose_desired
+ros2 topic echo --once /robot1/robot1_variable_stiffness/contact_valid
+ros2 topic echo --once /robot2/robot2_variable_stiffness/contact_valid
+
+# Run the richer adaptive press harness from the reproducible venv
+/workspaces/omx_ros2/.venv/bin/python tools/hardware_harness_v2.py
 ```
 
 If `/robot1/joint_states` and `/robot2/joint_states` are absent, do not debug the harness — the hardware bringup is not active.
+If the `cartesian_pose_desired` or `contact_valid` topics are absent, do not debug `tools/hardware_harness_v2.py` yet — the dual variable-stiffness controller graph is not fully up.
 
  and configurations for running **two independent Open Manipulator X robots** with:
 
@@ -126,6 +148,8 @@ See the latest session summary and recent fixes in [project_status.md](project_s
 - **Hardware harness test (2026-04-04):** `tools/hardware_harness.py` was executed on physical robots to validate liveness, idle, synchronous move, and hold stages. All stages passed; Stage 3 (synchronous move) showed a small timing offset between robots. See [project_status.md](project_status.md#L1) for full details and suggested mitigations (tune `publish_pose()` `dt`/`repeats` or publish identical header timestamps).
 
 A richer hardware harness (v2) that logs dual-robot snapshots and explicit sync metrics is available at `tools/hardware_harness_v2.py`. Logs are written by default to `/tmp/variable_stiffness_logs/` and are compatible with the repository's plotting helper `tools/plot_sync_metrics.py`.
+
+- **Hardware harness v2 status (2026-04-13):** Real dual-hardware execution is proven for Stage 1 and Stage 2. Stage 3 is still under tuning for bilateral contact establishment, and Stage 5 is not yet hardware-verified. The latest run history and rerun instructions are tracked in [project_status.md](project_status.md#L1).
 
 - **Gravity Compensation**: Passive gravity compensation for compliant manipulation
 - **Variable Cartesian Impedance Control**: Time-varying stiffness/damping profiles for precise force control

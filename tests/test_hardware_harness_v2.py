@@ -179,9 +179,13 @@ class TestHardwareHarnessV2(unittest.TestCase):
         harness = self.hh.HardwareHarnessAdaptive()
         harness.contact_valid_1 = True
         harness.contact_valid_2 = True
-        harness.contact_fx_mag_1 = 1.25
-        harness.contact_fx_mag_2 = 0.75
+        harness.precontact_baseline_fx_1 = 0.20
+        harness.precontact_baseline_fx_2 = 0.70
+        harness.contact_fx_mag_1 = 0.75
+        harness.contact_fx_mag_2 = 0.79
 
+        self.assertAlmostEqual(harness.contact_threshold(1), 0.70)
+        self.assertAlmostEqual(harness.contact_threshold(2), 0.80)
         self.assertTrue(harness.contact_detected(1))
         self.assertFalse(harness.contact_detected(2))
 
@@ -190,6 +194,7 @@ class TestHardwareHarnessV2(unittest.TestCase):
         self.assertIn("timestamp", harness.log_columns)
         self.assertIn("desired_x_diff", harness.log_columns)
         self.assertIn("press_offset_x1", harness.log_columns)
+        self.assertIn("contact_threshold_1", harness.log_columns)
         self.assertIn("timestamp", harness.sync_columns)
 
 

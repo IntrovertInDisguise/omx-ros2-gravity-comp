@@ -111,6 +111,8 @@ class HardwareHarnessAdaptive(Node):
         self.current_press_offset_x1 = 0.0
         self.current_press_offset_x2 = 0.0
         self.current_contact_mode = "none"
+        self.precontact_baseline_fx_1 = float("nan")
+        self.precontact_baseline_fx_2 = float("nan")
 
         self.idle_vel_limit = 1.0
         self.move_vel_limit = 1.5
@@ -120,18 +122,20 @@ class HardwareHarnessAdaptive(Node):
         self.command_sample_delay = 0.45
 
         self.precontact_start_x_offset = 0.0
-        self.precontact_end_x_offset = -0.0060
-        self.hold_x_offset = -0.0060
-        self.press_end_x_offset = -0.0120
+        self.precontact_end_x_offset = -0.0100
+        self.hold_x_offset = -0.0100
+        self.press_end_x_offset = -0.0140
         self.press_step = 0.0015
 
-        self.contact_force_enter = 1.0
+        self.contact_force_enter = 0.70
+        self.contact_force_delta_enter = 0.10
+        self.contact_force_threshold_cap = 0.85
         self.force_balance_tolerance = 0.35
         self.max_side_extra_press = 0.0060
         self.side_press_step = 0.0010
         self.force_diff_abort = 4.0
         self.max_force_mag_abort = 8.0
-        self.max_precontact_iterations = 8
+        self.max_precontact_iterations = 10
 
         self.log_root = os.environ.get("OMX_LOG_DIR", "/tmp/variable_stiffness_logs")
         self.run_ts = time.strftime("%Y%m%d_%H%M%S")
@@ -159,6 +163,10 @@ class HardwareHarnessAdaptive(Node):
             "contact_fx_mag_1",
             "contact_fx_mag_2",
             "contact_fx_diff",
+            "baseline_fx_1",
+            "baseline_fx_2",
+            "contact_threshold_1",
+            "contact_threshold_2",
             "contact_valid_1",
             "contact_valid_2",
         ]
@@ -182,6 +190,10 @@ class HardwareHarnessAdaptive(Node):
             "contact_fx_mag_1",
             "contact_fx_mag_2",
             "contact_fx_diff",
+            "baseline_fx_1",
+            "baseline_fx_2",
+            "contact_threshold_1",
+            "contact_threshold_2",
             "contact_valid_1",
             "contact_valid_2",
         ]
@@ -313,10 +325,31 @@ class HardwareHarnessAdaptive(Node):
         vmax = self.max_abs_velocity(js)
         return vmax is not None and vmax < limit
 
+    def capture_precontact_baseline(self) -> None:
+        self.precontact_baseline_fx_1 = self.contact_fx_mag_1 if self.finite(self.contact_fx_mag_1) else 0.0
+        self.precontact_baseline_fx_2 = self.contact_fx_mag_2 if self.finite(self.contact_fx_mag_2) else 0.0
+
+    def contact_threshold(self, robot_id: int) -> float:
+        baseline = self.precontact_baseline_fx_1 if robot_id == 1 else self.precontact_baseline_fx_2
+        if not self.finite(baseline):
+            baseline = 0.0
+        return min(
+            self.contact_force_threshold_cap,
+            max(self.contact_force_enter, baseline + self.contact_force_delta_enter),
+        )
+
     def contact_detected(self, robot_id: int) -> bool:
         if robot_id == 1:
-            return self.contact_valid_1 and self.finite(self.contact_fx_mag_1) and self.contact_fx_mag_1 >= self.contact_force_enter
-        return self.contact_valid_2 and self.finite(self.contact_fx_mag_2) and self.contact_fx_mag_2 >= self.contact_force_enter
+            return (
+                self.contact_valid_1
+                and self.finite(self.contact_fx_mag_1)
+                and self.contact_fx_mag_1 >= self.contact_threshold(1)
+            )
+        return (
+            self.contact_valid_2
+            and self.finite(self.contact_fx_mag_2)
+            and self.contact_fx_mag_2 >= self.contact_threshold(2)
+        )
 
     def wait_for_forward_phase(self, timeout: float = 10.0) -> bool:
         t0 = self.now_s()
@@ -383,6 +416,10 @@ class HardwareHarnessAdaptive(Node):
             "contact_fx_mag_1": self.contact_fx_mag_1,
             "contact_fx_mag_2": self.contact_fx_mag_2,
             "contact_fx_diff": contact_fx_diff,
+            "baseline_fx_1": self.precontact_baseline_fx_1,
+            "baseline_fx_2": self.precontact_baseline_fx_2,
+            "contact_threshold_1": self.contact_threshold(1),
+            "contact_threshold_2": self.contact_threshold(2),
             "contact_valid_1": float(self.contact_valid_1),
             "contact_valid_2": float(self.contact_valid_2),
         }
@@ -466,18 +503,14 @@ class HardwareHarnessAdaptive(Node):
         if not self.wait_for_forward_phase(timeout=10.0):
             return False, "controllers did not enter forward phase", {"samples": stage_info}
 
+        self.spin_for(0.10)
+        self.capture_precontact_baseline()
+
         offset1 = self.precontact_start_x_offset
         offset2 = self.precontact_start_x_offset
+        contact1 = False
+        contact2 = False
         for step_index in range(self.max_precontact_iterations):
-            contact1 = self.contact_detected(1)
-            contact2 = self.contact_detected(2)
-
-            if contact1 and contact2:
-                snap = self.snapshot()
-                snap["command_x_offset"] = min(offset1, offset2)
-                stage_info.append(snap)
-                return True, "bilateral contact established", {"samples": stage_info}
-
             if not contact1:
                 offset1 = max(offset1 - self.press_step, self.precontact_end_x_offset)
             if not contact2:
@@ -490,10 +523,16 @@ class HardwareHarnessAdaptive(Node):
             self.apply_press_target(target, contact_mode)
             self.spin_for(self.command_sample_delay)
 
+            contact1 = self.contact_detected(1)
+            contact2 = self.contact_detected(2)
+
             snap = self.snapshot()
             snap["command_x_offset"] = min(offset1, offset2)
             stage_info.append(snap)
             self.log_sync_step(min(offset1, offset2))
+
+            if contact1 and contact2:
+                return True, "bilateral contact established", {"samples": stage_info}
 
             if not self.check_limits(self.js1, self.move_vel_limit) or not self.check_limits(self.js2, self.move_vel_limit):
                 return False, "velocity spike during precontact approach", {"samples": stage_info}

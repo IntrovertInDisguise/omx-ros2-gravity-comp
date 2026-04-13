@@ -1,5 +1,32 @@
 (Entry added automatically by session tooling.)
 
+## Update (2026-04-13 — `hardware_harness_v2` real-hardware tuning, Stage 3 still blocked)
+
+- **Action:** Executed `tools/hardware_harness_v2.py` against the live dual-hardware variable-stiffness bringup, captured sync CSVs/logs, tuned precontact contact-detection logic in `tools/hardware_harness_v2.py`, and updated `tests/test_hardware_harness_v2.py` to match the new threshold behavior.
+- **What was proven:**
+  - The real dual-hardware controller graph came up correctly with `/dev/ttyUSB0` and `/dev/ttyUSB1` visible and the documented launch `dual_hardware_variable_stiffness.launch.py` active.
+  - A real hardware run of `tools/hardware_harness_v2.py` passed Stage 1 (publishers + pose topics present) and Stage 2 (idle) before failing Stage 3 with `bilateral contact not established`.
+  - Focused local validation after the code changes succeeded: `python -m py_compile tools/hardware_harness_v2.py tests/test_hardware_harness_v2.py` and `python -m unittest tests.test_hardware_harness_v2` both passed.
+- **Observed Stage 3 failure mode:**
+  - Initial real-hardware failure showed both `contact_valid` topics present, but the absolute contact latch was too strict and the precontact x-offset range saturated before both sides crossed the gate.
+  - First tuning pass added baseline-relative thresholds, deeper precontact travel, extra sync CSV fields (`baseline_fx_*`, `contact_threshold_*`), and post-command contact evaluation.
+  - Second tuning pass capped the threshold inflation and moved the Stage 3 contact decision to after each press step is applied.
+- **Current blocker:**
+  - Final hardware rerun was interrupted by maintenance because the robots were powered down, and the next attempt failed immediately with missing `cartesian_pose_desired` / EE topics rather than a harness logic error. Stage 5 is therefore still **not** hardware-verified.
+- **Artifacts from the proven runs:**
+  - `/tmp/hardware_harness_v2.log`
+  - `/tmp/hardware_harness_v2_tuned.log`
+  - `/tmp/variable_stiffness_logs/hardware_harness_adaptive_20260413_171922.csv`
+  - `/tmp/variable_stiffness_logs/hardware_harness_sync_steps_20260413_171922.csv`
+- **Files touched:**
+  - `tools/hardware_harness_v2.py`
+  - `tests/test_hardware_harness_v2.py`
+  - `README.md`
+- **Next steps after maintenance:**
+  - Relaunch `dual_hardware_variable_stiffness.launch.py` with logger and live plot enabled.
+  - Confirm `/robot{1,2}/robot{1,2}_variable_stiffness/cartesian_pose_desired` and `/robot{1,2}/robot{1,2}_variable_stiffness/contact_valid` exist before rerunning `tools/hardware_harness_v2.py`.
+  - Continue tuning only from real Stage 3 / Stage 5 output; do not mark v2 as hardware-tested in README until Stage 5 completes.
+
 ## Update (2026-04-04 — Hardware harness test: passed; minor sync offset)
 
 - **Action:** Ran `tools/hardware_harness.py` on physical robots to validate liveness, idle, synchronous move, and hold stages.
