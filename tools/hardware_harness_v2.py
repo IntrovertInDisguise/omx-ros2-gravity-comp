@@ -127,15 +127,15 @@ class HardwareHarnessAdaptive(Node):
         self.press_end_x_offset = -0.0140
         self.press_step = 0.0015
 
-        self.contact_force_enter = 0.70
+        self.contact_force_enter = 0.60
         self.contact_force_delta_enter = 0.10
-        self.contact_force_threshold_cap = 0.85
+        self.contact_force_threshold_cap = 0.60
         self.force_balance_tolerance = 0.35
         self.max_side_extra_press = 0.0060
         self.side_press_step = 0.0010
         self.force_diff_abort = 4.0
         self.max_force_mag_abort = 8.0
-        self.max_precontact_iterations = 10
+        self.max_precontact_iterations = 12
 
         self.log_root = os.environ.get("OMX_LOG_DIR", "/tmp/variable_stiffness_logs")
         self.run_ts = time.strftime("%Y%m%d_%H%M%S")

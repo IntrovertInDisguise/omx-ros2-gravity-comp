@@ -184,10 +184,10 @@ class TestHardwareHarnessV2(unittest.TestCase):
         harness.contact_fx_mag_1 = 0.75
         harness.contact_fx_mag_2 = 0.79
 
-        self.assertAlmostEqual(harness.contact_threshold(1), 0.70)
-        self.assertAlmostEqual(harness.contact_threshold(2), 0.80)
+        self.assertAlmostEqual(harness.contact_threshold(1), 0.60)
+        self.assertAlmostEqual(harness.contact_threshold(2), 0.60)
         self.assertTrue(harness.contact_detected(1))
-        self.assertFalse(harness.contact_detected(2))
+        self.assertTrue(harness.contact_detected(2))
 
     def test_columns_defined(self):
         harness = self.hh.HardwareHarnessAdaptive()

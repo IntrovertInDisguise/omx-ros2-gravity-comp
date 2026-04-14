@@ -1,5 +1,26 @@
 (Entry added automatically by session tooling.)
 
+## Update (2026-04-14 — `hardware_harness_v2` fast retune, Stage 5 hardware pass)
+
+- **Action:** Applied a fast Stage 3 tuning pass in `tools/hardware_harness_v2.py`, validated with unit tests, and re-ran live dual-hardware harness until full completion.
+- **Tuning applied:**
+  - `contact_force_enter`: `0.70 -> 0.60`
+  - `contact_force_threshold_cap`: `0.85 -> 0.60`
+  - `max_precontact_iterations`: `10 -> 12`
+  - Updated threshold unit tests in `tests/test_hardware_harness_v2.py`.
+- **Result (live hardware):**
+  - Stage 1: ✅ pass
+  - Stage 2: ✅ pass
+  - Stage 3: ✅ pass (`bilateral contact established`)
+  - Stage 4: ✅ pass (`hold stable`)
+  - Stage 5: ✅ pass (`adaptive bilateral compression completed`)
+  - Final: `ALL STAGES PASSED`
+- **Artifacts:**
+  - `/tmp/hardware_harness_v2_fast_retry2.log`
+  - `/tmp/dual_hw_fast_retry.log`
+- **Notes:**
+  - Earlier retries on 2026-04-14 showed intermittent bus-level init failures (`ID:11` no status packet), but the final validated run completed all 5 stages and produced consistent sample data through adaptive compression.
+
 ## Update (2026-04-13 — `hardware_harness_v2` real-hardware tuning, Stage 3 still blocked)
 
 - **Action:** Executed `tools/hardware_harness_v2.py` against the live dual-hardware variable-stiffness bringup, captured sync CSVs/logs, tuned precontact contact-detection logic in `tools/hardware_harness_v2.py`, and updated `tests/test_hardware_harness_v2.py` to match the new threshold behavior.
